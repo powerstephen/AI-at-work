@@ -25,20 +25,59 @@ const GOAL_META: Record<Goal,{label:string; hint:string}> = {
   upskilling: { label:'Upskilling',              hint:'Competency coverage → gains' }
 };
 
+const MATURITY_LABELS = [
+  '1. Early: ad-hoc experiments; big wins from prompt basics + mapping workflows',
+  '2. Few experimenters; scattered use; minimal documentation',
+  '3. Pockets of use; some repeatable tasks identified',
+  '4. Champions emerging; shared prompts; initial QA gates',
+  '5. Team playbooks; recurring usage; savings are measurable',
+  '6. Cross-team sharing; prompts/templates in daily ops',
+  '7. Tooling integrated; data & guardrails; steady gains',
+  '8. Automation loops active; enablement & review cadences',
+  '9. AI-first workflows; advanced analytics; platform mindset',
+  '10. Embedded across org; continuous improvement culture'
+];
+
 const symbol = (c:Currency)=> c==='EUR'?'€':c==='USD'?'$':'£';
 const money = (n:number,c:Currency)=> new Intl.NumberFormat('en',{style:'currency',currency:c,maximumFractionDigits:0}).format(n);
 const clamp = (n:number,lo:number,hi:number)=>Math.max(lo,Math.min(hi,n));
 const hourlyFromSalary = (s:number)=> s/(52*40);
 
+/* Simple error boundary (keeps blank screens away) */
+class EB extends React.Component<{children:React.ReactNode},{err?:Error}>{
+  constructor(p:any){ super(p); this.state={}; }
+  static getDerivedStateFromError(e:Error){ return { err:e }; }
+  componentDidCatch(e:Error, info:any){ console.error('Runtime error:', e, info); }
+  render(){
+    if(this.state.err){
+      return (
+        <main className="container">
+          <div className="card" style={{background:'#fff5f5',border:'1px solid #ffd6d6'}}>
+            <h2 style={{marginTop:0}}>Render error</h2>
+            <pre style={{whiteSpace:'pre-wrap'}}>{String(this.state.err.message)}</pre>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Page(){
   return (
     <main className="container">
-      <Calculator />
+      <EB><Calculator/></EB>
       <section style={{textAlign:'center',color:'#667085',fontSize:12,padding:'8px 0 24px'}}>
         Build: {new Date().toISOString()}
       </section>
     </main>
   );
+}
+
+function hoursFromMaturity(level:number){
+  // 1 → ~5h/wk … 10 → ~0.75h/wk
+  const map = [5.0, 4.5, 4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.75];
+  return map[clamp(level,1,10)-1];
 }
 
 function Calculator(){
@@ -55,18 +94,31 @@ function Calculator(){
   const hourly = useMemo(()=>hourlyFromSalary(avgSalary),[avgSalary]);
   const programCost = trainingPerEmployee * employees * (durationMonths/12);
 
-  // choose top 3
+  // maturity
+  const [maturity, setMaturity] = useState(3);
+  const derivedHours = hoursFromMaturity(maturity);
+
+  // choose top 3 (checkbox tiles)
   const [selected, setSelected] = useState<Goal[]>(['throughput','retention','upskilling']);
   const toggleGoal = (g:Goal)=> setSelected(prev=>{
     const on = prev.includes(g);
     if(on) return prev.filter(x=>x!==g);
-    if(prev.length>=3) return prev;
+    if(prev.length>=3) return prev; // max 3
     return [...prev,g];
   });
 
-  // throughput
-  const [tpHoursPerWeek, setTpHoursPerWeek] = useState(3);
+  // throughput (prefilled from maturity; editable later)
+  const [tpHoursPerWeek, setTpHoursPerWeek] = useState(derivedHours);
   const [tpUtilPct, setTpUtilPct] = useState(70);
+
+  // keep tpHours in sync when user hasn’t edited yet
+  const [tpTouched, setTpTouched] = useState(false);
+  if(!tpTouched && tpHoursPerWeek !== derivedHours){
+    // update silently when maturity changes
+    // (this runs during render but guards on equality to avoid loops)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    setTimeout(()=>{ setTpHoursPerWeek(derivedHours); }, 0);
+  }
 
   // quality
   const [qlEventsPerPersonPerMonth, setQlEventsPerPersonPerMonth] = useState(3);
@@ -93,22 +145,36 @@ function Calculator(){
   const [upHoursPerWeek, setUpHoursPerWeek] = useState(2);
   const [upUtilPct, setUpUtilPct] = useState(70);
 
-  // formulas
+  // values per goal
   const valThroughput = selected.includes('throughput')
     ? tpHoursPerWeek*52*employees*hourly*clamp(tpUtilPct/100,0,1) : 0;
+
   const valQuality = selected.includes('quality')
     ? (qlEventsPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix)*hourly*clamp(tpUtilPct/100,0,1) : 0;
+
   const valOnboarding = selected.includes('onboarding')
     ? clamp(obBaselineRamp - Math.min(obBaselineRamp, obImprovedRamp),0,24)*obHiresPerYear*(avgSalary/12)*clamp(tpUtilPct/100,0,1) : 0;
+
   const valRetention = selected.includes('retention')
     ? (employees*(rtBaselineTurnoverPct/100)*(rtReductionPct/100))*(avgSalary*(rtReplacementCostPct/100)) : 0;
+
   const valCost = selected.includes('cost')
     ? (csConsolidationPerMonth + csEliminatedTools*csAvgToolCostPerMonth)*12 : 0;
+
   const upBase = selected.includes('upskilling')
     ? (upCoveragePct/100)*employees*upHoursPerWeek*52*hourly*clamp(upUtilPct/100,0,1) : 0;
   const valUpskilling = (selected.includes('throughput') && selected.includes('upskilling')) ? upBase*0.7 : upBase;
 
-  const annualValue = valThroughput+valQuality+valOnboarding+valRetention+valCost+valUpskilling;
+  const breakdown: {key:Goal; label:string; value:number}[] = [
+    { key:'throughput', label:GOAL_META.throughput.label, value:valThroughput },
+    { key:'quality', label:GOAL_META.quality.label, value:valQuality },
+    { key:'onboarding', label:GOAL_META.onboarding.label, value:valOnboarding },
+    { key:'retention', label:GOAL_META.retention.label, value:valRetention },
+    { key:'cost', label:GOAL_META.cost.label, value:valCost },
+    { key:'upskilling', label:GOAL_META.upskilling.label, value:valUpskilling },
+  ].filter(x=>selected.includes(x.key)).sort((a,b)=>b.value-a.value);
+
+  const annualValue = breakdown.reduce((s,b)=>s+b.value,0);
   const monthlySavings = annualValue/12;
   const roiMultiple = programCost>0 ? (annualValue/programCost) : 0;
   const paybackMonths = monthlySavings>0 ? (programCost/monthlySavings) : Infinity;
@@ -116,12 +182,13 @@ function Calculator(){
   // steps
   const steps = [
     'Basics',
+    'AI Maturity',
     'Pick top 3 priorities',
     ...selected.map(g=>`Configure: ${GOAL_META[g].label}`),
     'Results'
   ];
   const progress = steps.length>1 ? (step/(steps.length-1)) : 0;
-  const atResults = step === (2 + selected.length);
+  const atResults = step === (3 + selected.length);
 
   return (
     <>
@@ -131,8 +198,6 @@ function Calculator(){
         <p style={{margin:'6px 0 10px',color:'rgba(255,255,255,.92)'}}>
           Quantify time saved, payback, and retention impact from training managers and teams to work effectively with AI.
         </p>
-
-        {/* Show static labels until Results; live values only on Results */}
         <div className="hero-grid">
           {!atResults ? (
             <>
@@ -207,50 +272,101 @@ function Calculator(){
             </div>
           </div>
 
-          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:8,marginTop:12}}>
+            <span/>
             <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
           </div>
         </section>
       )}
 
-      {/* STEP 1: PICK TOP 3 */}
+      {/* STEP 1: AI MATURITY (slider + live panel) */}
       {step===1 && (
         <section className="card center">
+          <h3 className="h3">AI Maturity</h3>
+          <p className="help">Slide to estimate current adoption. We’ll prefill productivity assumptions and show hours saved.</p>
+
+          <div className="twocol">
+            {/* Left: slider + description */}
+            <div>
+              <label className="label">Current maturity level (1–10)</label>
+              <div className="range-wrap">
+                <input
+                  className="range"
+                  type="range"
+                  min={1} max={10} step={1}
+                  value={maturity}
+                  onChange={(e)=>{ setMaturity(Number(e.target.value)); }}
+                />
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#667085',marginTop:6}}>
+                {[1,2,3,4,5,6,7,8,9,10].map(n=>(
+                  <span key={n} style={{width:18, textAlign:'center', fontWeight: n===maturity?900:600, color: n===maturity?BLUE:'#667085'}}>{n}</span>
+                ))}
+              </div>
+              <div style={{marginTop:10, padding:12, border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF'}}>
+                <strong>{MATURITY_LABELS[maturity-1]}</strong>
+              </div>
+              <p className="help" style={{marginTop:8}}>
+                Prefill productivity for “Throughput” using this maturity. You can still tweak in its step.
+              </p>
+            </div>
+
+            {/* Right: live panel */}
+            <div className="live">
+              <h4>Live estimate</h4>
+              <div className="live-row"><span>Maturity level</span><strong>{maturity}/10</strong></div>
+              <div className="live-row"><span>Hours saved / employee / week</span><strong>{derivedHours.toFixed(2)} h</strong></div>
+              <div className="live-row"><span>Employees in scope</span><strong>{employees}</strong></div>
+              <div className="live-row"><span>Total team hours saved / year</span><strong>{Math.round(derivedHours*52*employees).toLocaleString()}</strong></div>
+            </div>
+          </div>
+
+          <div style={{display:'flex',justifyContent:'space-between',gap:8,marginTop:12}}>
+            <button className="btn" onClick={()=>setStep(0)}>← Back</button>
+            <button className="btn-primary" onClick={()=>setStep(2)}>Continue →</button>
+          </div>
+        </section>
+      )}
+
+      {/* keep tp hours synced until manually edited */}
+      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+      {null}
+
+      {/* STEP 2: PICK TOP 3 (checkbox tiles) */}
+      {step===2 && (
+        <section className="card center">
           <h3 className="h3">Pick your top 3 priorities</h3>
-          <p className="help">Choose up to three. The next screens will adapt.</p>
+          <p className="help">Tick up to three. The next screens will adapt.</p>
+
           <div className="grid">
             {(Object.keys(GOAL_META) as Goal[]).map(g=>{
               const on = selected.includes(g);
               return (
-                <div key={g} style={{border:'1px solid #E7ECF7',borderRadius:14,padding:12,background:on?'rgba(51,102,254,.06)':'#fff'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
-                    <button type="button"
-                      onClick={()=>toggleGoal(g)}
-                      className="btn"
-                      style={{
-                        border: `1px solid ${on?'transparent':'#E7ECF7'}`,
-                        background: on?BLUE:'#fff',
-                        color: on?'#fff':'#0E1320'
-                      }}>
-                      {GOAL_META[g].label}
-                    </button>
+                <label key={g} className={`tile ${on?'on':''}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={()=>toggleGoal(g)}
+                  />
+                  <div>
+                    <div style={{fontWeight:900}}>{GOAL_META[g].label}</div>
+                    <div className="help">{GOAL_META[g].hint}</div>
                   </div>
-                  <div style={{marginTop:8,fontSize:'.86rem',color:'#667085'}}>{GOAL_META[g].hint}</div>
-                </div>
+                </label>
               );
             })}
           </div>
 
           <div style={{display:'flex',justifyContent:'space-between',gap:8,marginTop:12}}>
-            <button className="btn" onClick={()=>setStep(0)}>← Back</button>
-            <button className="btn-primary" onClick={()=>setStep(2)} disabled={selected.length===0}>Continue →</button>
+            <button className="btn" onClick={()=>setStep(1)}>← Back</button>
+            <button className="btn-primary" onClick={()=>setStep(3)} disabled={selected.length===0}>Continue →</button>
           </div>
         </section>
       )}
 
-      {/* DYNAMIC CONFIG STEPS */}
+      {/* DYNAMIC CONFIG STEPS (prefill throughput hours from maturity) */}
       {selected.map((g, idx)=>{
-        const idxStep = 2+idx;
+        const idxStep = 3+idx;
         if(step!==idxStep) return null;
         return (
           <section key={g} className="card center">
@@ -259,7 +375,17 @@ function Calculator(){
 
             {g==='throughput' && (
               <div className="grid">
-                <FieldNum label="Hours saved per person / week" v={tpHoursPerWeek} set={setTpHoursPerWeek} step={0.5}/>
+                <div>
+                  <label className="label">Hours saved per person / week</label>
+                  <input
+                    type="number"
+                    value={tpHoursPerWeek}
+                    step={0.25}
+                    onChange={e=>{ setTpHoursPerWeek(Number(e.target.value||0)); setTpTouched(true); }}
+                    className="input"
+                  />
+                  <p className="help">Prefilled from maturity: {hoursFromMaturity(maturity).toFixed(2)} h/wk</p>
+                </div>
                 <FieldNum label="Utilization factor (%)" v={tpUtilPct} set={setTpUtilPct} min={0} max={100} step={5}/>
               </div>
             )}
@@ -311,14 +437,55 @@ function Calculator(){
       {atResults && (
         <section className="card center">
           <h3 className="h3">Results</h3>
+
+          {/* KPI row */}
           <div style={{display:'grid',gap:12,gridTemplateColumns:'repeat(2,minmax(0,1fr))'}}>
             <KPI t="Total annual value" v={money(annualValue,currency)} />
             <KPI t="Annual ROI" v={`${roiMultiple.toFixed(1)}×`} />
             <KPI t="Payback" v={Number.isFinite(paybackMonths)?`${paybackMonths.toFixed(1)} mo`:'—'} />
             <KPI t="Monthly savings" v={money(monthlySavings,currency)} />
           </div>
+
+          {/* Breakdown + insights */}
+          <div style={{display:'grid',gap:12,gridTemplateColumns:'1.2fr .8fr', marginTop:12}}>
+            <div style={{border:'1px solid #E7ECF7',borderRadius:14,padding:12}}>
+              <strong>Value breakdown by priority</strong>
+              <div style={{marginTop:8}}>
+                {breakdown.map(b=>(
+                  <div key={b.key} style={{display:'grid',gridTemplateColumns:'1fr auto',gap:10,padding:'8px 0',borderTop:'1px dashed #E7ECF7'}}>
+                    <span>{b.label}</span>
+                    <strong>{money(b.value,currency)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="live">
+              <h4>Insights</h4>
+              <div className="live-row">
+                <span>Top driver</span>
+                <strong>{breakdown.length?breakdown[0].label:'—'}</strong>
+              </div>
+              <div className="live-row">
+                <span>% of total from top driver</span>
+                <strong>
+                  {breakdown.length && annualValue>0 ? Math.round((breakdown[0].value/annualValue)*100) : 0}%
+                </strong>
+              </div>
+              <div className="live-row">
+                <span>Hours saved / employee / week</span>
+                <strong>{tpHoursPerWeek.toFixed(2)} h</strong>
+              </div>
+              <div className="live-row">
+                <span>Total team hours saved / year</span>
+                <strong>{Math.round(tpHoursPerWeek*52*employees).toLocaleString()}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Next steps */}
           <div style={{marginTop:12,padding:'12px 14px',border:'1px solid #E7ECF7',borderRadius:12,background:'#F8FAFF'}}>
-            <strong>Next steps:</strong>{' '}
+            <strong>Recommended next steps:</strong>{' '}
             {selected.includes('throughput') && 'Map top workflows → prompt libraries + QA gates. '}
             {selected.includes('quality') && 'Introduce AI review checkpoints to cut rework. '}
             {selected.includes('onboarding') && 'Role playbooks + guided “first 90 days”. '}
@@ -326,8 +493,9 @@ function Calculator(){
             {selected.includes('cost') && 'Audit overlap; pilot tool consolidation. '}
             {selected.includes('upskilling') && 'Set competency targets; measure weekly AI usage.'}
           </div>
+
           <div style={{display:'flex',justifyContent:'space-between',gap:8,marginTop:12}}>
-            <button className="btn" onClick={()=>setStep(2+selected.length-1)}>← Back</button>
+            <button className="btn" onClick={()=>setStep(3+selected.length-1)}>← Back</button>
             <button className="btn-primary" onClick={()=>setStep(0)}>Start over</button>
           </div>
         </section>
@@ -336,6 +504,7 @@ function Calculator(){
   );
 }
 
+/* UI helpers */
 function FieldNum({label,v,set,min,max,step}:{label:string;v:number;set:(n:number)=>void;min?:number;max?:number;step?:number}){
   return (
     <div>
@@ -346,7 +515,6 @@ function FieldNum({label,v,set,min,max,step}:{label:string;v:number;set:(n:numbe
     </div>
   );
 }
-
 function KPI({t,v}:{t:string;v:string}){
   return (
     <div className="kpi">
