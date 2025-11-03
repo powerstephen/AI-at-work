@@ -1,12 +1,23 @@
-export const metadata = {
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+
+export const metadata: Metadata = {
   title: 'AI at Work — Human Productivity ROI',
-  description: 'Estimate time saved, payback and ROI from upskilling teams on AI.'
+  description:
+    'Estimate time saved, payback and ROI from upskilling managers and teams on AI.',
 };
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0 }}>{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className="app-body">{children}</body>
     </html>
   );
 }
