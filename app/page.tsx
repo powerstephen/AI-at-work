@@ -43,7 +43,7 @@ const money = (n:number,c:Currency)=> new Intl.NumberFormat('en',{style:'currenc
 const clamp = (n:number,lo:number,hi:number)=>Math.max(lo,Math.min(hi,n));
 const hourlyFromSalary = (s:number)=> s/(52*40);
 
-/* Simple error boundary (keeps blank screens away) */
+/* Simple error boundary (prevents blank screen) */
 class EB extends React.Component<{children:React.ReactNode},{err?:Error}>{
   constructor(p:any){ super(p); this.state={}; }
   static getDerivedStateFromError(e:Error){ return { err:e }; }
@@ -115,7 +115,6 @@ function Calculator(){
   const [tpTouched, setTpTouched] = useState(false);
   if(!tpTouched && tpHoursPerWeek !== derivedHours){
     // update silently when maturity changes
-    // (this runs during render but guards on equality to avoid loops)
     // eslint-disable-next-line react-hooks/rules-of-hooks
     setTimeout(()=>{ setTpHoursPerWeek(derivedHours); }, 0);
   }
@@ -165,14 +164,17 @@ function Calculator(){
     ? (upCoveragePct/100)*employees*upHoursPerWeek*52*hourly*clamp(upUtilPct/100,0,1) : 0;
   const valUpskilling = (selected.includes('throughput') && selected.includes('upskilling')) ? upBase*0.7 : upBase;
 
-  const breakdown: {key:Goal; label:string; value:number}[] = [
-    { key:'throughput', label:GOAL_META.throughput.label, value:valThroughput },
-    { key:'quality', label:GOAL_META.quality.label, value:valQuality },
-    { key:'onboarding', label:GOAL_META.onboarding.label, value:valOnboarding },
-    { key:'retention', label:GOAL_META.retention.label, value:valRetention },
-    { key:'cost', label:GOAL_META.cost.label, value:valCost },
-    { key:'upskilling', label:GOAL_META.upskilling.label, value:valUpskilling },
-  ].filter(x=>selected.includes(x.key)).sort((a,b)=>b.value-a.value);
+  // ---- FIX: assert keys as Goal so TS is happy ----
+  const breakdown: {key: Goal; label:string; value:number}[] = [
+    { key:'throughput' as Goal, label:GOAL_META.throughput.label, value:valThroughput },
+    { key:'quality'    as Goal, label:GOAL_META.quality.label,    value:valQuality },
+    { key:'onboarding' as Goal, label:GOAL_META.onboarding.label, value:valOnboarding },
+    { key:'retention'  as Goal, label:GOAL_META.retention.label,  value:valRetention },
+    { key:'cost'       as Goal, label:GOAL_META.cost.label,       value:valCost },
+    { key:'upskilling' as Goal, label:GOAL_META.upskilling.label, value:valUpskilling },
+  ]
+    .filter(x=>selected.includes(x.key))
+    .sort((a,b)=>b.value-a.value);
 
   const annualValue = breakdown.reduce((s,b)=>s+b.value,0);
   const monthlySavings = annualValue/12;
@@ -328,10 +330,6 @@ function Calculator(){
         </section>
       )}
 
-      {/* keep tp hours synced until manually edited */}
-      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      {null}
-
       {/* STEP 2: PICK TOP 3 (checkbox tiles) */}
       {step===2 && (
         <section className="card center">
@@ -364,7 +362,7 @@ function Calculator(){
         </section>
       )}
 
-      {/* DYNAMIC CONFIG STEPS (prefill throughput hours from maturity) */}
+      {/* DYNAMIC CONFIG STEPS */}
       {selected.map((g, idx)=>{
         const idxStep = 3+idx;
         if(step!==idxStep) return null;
