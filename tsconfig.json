@@ -12,6 +12,6 @@
     "jsx": "preserve",
     "plugins": [{ "name": "next" }]
   },
-  "include": ["next-env.d.ts", "app/**/*.*"],
+  "include": ["next-env.d.ts", "pages/**/*.*"],
   "exclude": ["node_modules"]
 }
