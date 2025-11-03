@@ -21,15 +21,13 @@ export default function BrandHero({
       <div className="brand-hero__wrap">
         <div className="brand-hero__top">
           <img
-            src="/brainster-logo.svg"
+            src="/brainster-logo.png"  /* <-- your real file in /public */
             alt="Brainster"
             className="brand-hero__logo"
             width={160}
             height={40}
           />
-          <div className="brand-hero__top-right">
-            <div className="brand-hero__pill">AI at Work</div>
-          </div>
+          <div className="brand-hero__pill">AI at Work</div>
         </div>
 
         <h1 className="brand-hero__title">Human Productivity ROI</h1>
