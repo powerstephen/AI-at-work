@@ -38,11 +38,11 @@ function suggestedHours(team: Team, maturity: number) {
 }
 function maturityDetail(score: number) {
   const v = Math.round(score);
-  if (v <= 2) return 'Early: ad-hoc experiments; big wins from prompt basics + workflow mapping.';
-  if (v <= 4) return 'Isolated champions; add templates, shared prompt library, QA gates.';
-  if (v <= 6) return 'Growing adoption; standardize stack, add measurement, weekly enablement.';
-  if (v <= 8) return 'Operationalized; embed in SOPs, connect data, track KPIs.';
-  return 'Best-in-class; scale champions, role playbooks, quarterly ROI reviews.';
+  if (v <= 2) return '1–2. Early: ad-hoc experiments; big wins from prompt basics + workflow mapping.';
+  if (v <= 4) return '3–4. Isolated champions; add templates, shared prompt library, QA gates.';
+  if (v <= 6) return '5–6. Growing adoption; standardize stack, add measurement, weekly enablement.';
+  if (v <= 8) return '7–8. Operationalized; embed in SOPs, connect data, track KPIs.';
+  return '9–10. Best-in-class; scale champions, role playbooks, quarterly ROI reviews.';
 }
 function calcProductivityAnnual(avgSalary:number, hoursPerWeek:number, employees:number) {
   const hourly = avgSalary / (52 * 40);
@@ -88,7 +88,7 @@ export default function Home() {
 function Calculator() {
   const [step, setStep] = useState(1);
 
-  // Step 1 — Team (previously “Audience”)
+  // Step 1 — Team
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [team, setTeam] = useState<Team>('all');
   const [employees, setEmployees] = useState<number>(150);
@@ -156,7 +156,7 @@ function Calculator() {
   const btn = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, fontWeight: 800, border: '1px solid #E7ECF7', cursor: 'pointer', background: '#fff' } as const;
   const btnPrimary = { ...btn, background: 'linear-gradient(90deg,#5A7BFF,#3366FE)', color: '#fff', borderColor: 'transparent', boxShadow: '0 8px 20px rgba(31,77,255,.25)' } as const;
 
-  // Stepper labels (first label changed to “Team”)
+  // Stepper labels
   const labels = ['Team','AI Benchmark','Retention','Training & Duration','Results'];
   const pct = Math.min((step - 1) / (labels.length - 1), 1);
 
@@ -217,7 +217,6 @@ function Calculator() {
 
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={label}>Improvement areas (select all that apply)</label>
-              {/* Checkbox cards in a 2-row responsive grid */}
               <div
                 style={{
                   display:'grid',
@@ -285,41 +284,51 @@ function Calculator() {
         </section>
       )}
 
-      {/* STEP 2 — AI Benchmark */}
+      {/* STEP 2 — AI Benchmark (slider + compact live box) */}
       {step === 2 && (
         <section style={card}>
           <h3 style={{ ...h3, color: '#0F172A' }}>AI Benchmark</h3>
           <div style={twoCol}>
+            {/* Left: Slider + description + hours override */}
             <div style={{ paddingRight: 8 }}>
-              <label style={{ fontWeight: 800 }}>AI Maturity (1–10)</label>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:8 }}>
-                {Array.from({length:10}).map((_,i)=>{
-                  const val = i+1;
-                  const active = val === maturityScore;
-                  return (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={()=>{
-                        setMaturityScore(val);
-                        if (!userTouchedHours.current) setHoursSavedPerWeek(suggestedHours(team, val));
-                      }}
-                      style={{
-                        width:40, height:40, borderRadius:12, fontWeight:900, cursor:'pointer',
-                        border:'1px solid #E7ECF7',
-                        background: active ? 'linear-gradient(90deg,#6D8BFF,#3366FE)' : '#fff',
-                        color: active ? '#fff' : '#0E1320',
-                        boxShadow: active ? '0 8px 20px rgba(31,77,255,.20)' : 'none'
-                      }}
-                    >
-                      {val}
-                    </button>
-                  );
-                })}
-              </div>
-              <p style={{ ...helpDark, marginTop:8 }}>{maturityDetail(maturityScore)}</p>
+              <label style={{ fontWeight: 800, display:'block' }}>AI Maturity</label>
 
-              <div style={gridAuto as any}>
+              {/* Slider */}
+              <div style={{ marginTop:10 }}>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={maturityScore}
+                  onChange={(e)=>{
+                    const val = Number(e.target.value);
+                    setMaturityScore(val);
+                    if (!userTouchedHours.current) setHoursSavedPerWeek(suggestedHours(team, val));
+                  }}
+                  style={{ width:'100%' }}
+                />
+                {/* Tick labels 1..10 */}
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#667085', marginTop:4 }}>
+                  {Array.from({length:10}).map((_,i)=><span key={i}>{i+1}</span>)}
+                </div>
+              </div>
+
+              {/* Bold description */}
+              <div style={{
+                marginTop:12,
+                border:'1px solid #EEF2FF',
+                background:'#F8FAFF',
+                padding:'12px 14px',
+                borderRadius:12,
+                fontWeight:800,
+                color:'#0F172A'
+              }}>
+                {maturityDetail(maturityScore)}
+              </div>
+
+              {/* Hours override */}
+              <div style={{ ...gridAuto as any, marginTop:12 }}>
                 <div>
                   <label style={{ fontWeight: 800 }}>Hours saved per person / week (override)</label>
                   <input
@@ -335,28 +344,23 @@ function Calculator() {
               </div>
             </div>
 
-            {/* Blue KPI box */}
+            {/* Right: Compact live box (4 items, no money) */}
             <div style={{
-              marginTop: 4, borderRadius: 14, padding: 14, color: '#fff',
+              marginTop: 4, borderRadius: 14, padding: 12, color: '#fff',
               border: '1px solid rgba(255,255,255,.35)',
               background: 'linear-gradient(135deg, #4B6FFF, #3366FE)',
               boxShadow: '0 12px 30px rgba(15,42,120,.25)', width: '100%'
             }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                <div style={{ fontWeight: 900 }}>Estimated Hours Saved</div>
-                <div style={{ padding:'6px 10px', borderRadius:999, border:'1px solid rgba(255,255,255,.4)', background:'rgba(255,255,255,.15)', fontWeight:900 }}>Live</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                <div style={{ fontWeight: 900 }}>Live</div>
+                <div style={{ padding:'4px 8px', borderRadius:999, border:'1px solid rgba(255,255,255,.4)', background:'rgba(255,255,255,.15)', fontWeight:900 }}>Updated</div>
               </div>
 
-              <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(3,minmax(0,1fr))' }}>
-                <Box t="Per employee / year" v={`${Math.round(hoursSavedPerWeek*52).toLocaleString()} hrs`} />
-                <Box t="Employees in scope" v={employees.toLocaleString()} />
-                <Box t="Total hours / year" v={(Math.round(hoursSavedPerWeek*52*employees)).toLocaleString() + ' hrs'} />
-              </div>
-
-              <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(3,minmax(0,1fr))', marginTop:10 }}>
-                <Box t="Productivity value / month" v={money((calcProductivityAnnual(avgSalary, hoursSavedPerWeek, employees)||0)/12)} />
-                <Box t="Productivity value / year" v={money(calcProductivityAnnual(avgSalary, hoursSavedPerWeek, employees)||0)} />
+              <div style={{ display:'grid', gap:8, gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
                 <Box t="Maturity level" v={`${maturityScore}/10`} />
+                <Box t="Employees in scope" v={employees.toLocaleString()} />
+                <Box t="Hours / employee (wk)" v={`${hoursSavedPerWeek.toFixed(1)}`} />
+                <Box t="Total hours / year" v={(Math.round(hoursSavedPerWeek*52*employees)).toLocaleString() + ' hrs'} />
               </div>
             </div>
           </div>
@@ -467,7 +471,7 @@ function Box({ t, v }: { t:string; v:string }) {
   return (
     <div>
       <div style={{ fontSize: '.8rem', opacity: .95, fontWeight: 800 }}>{t}</div>
-      <div style={{ fontWeight: 900, fontSize: '1.25rem' }}>{v}</div>
+      <div style={{ fontWeight: 900, fontSize: '1.2rem' }}>{v}</div>
     </div>
   );
 }
