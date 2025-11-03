@@ -16,21 +16,22 @@ const TEAMS: {label:string; value:Team}[] = [
   { label: 'Product', value: 'product' },
 ];
 
-const PAIN_OPTS: {label:string; value:Pain}[] = [
-  { label: 'Staff retention', value: 'retention' },
-  { label: 'Employee engagement', value: 'engagement' },
-  { label: 'Output quality / rework', value: 'quality' },
-  { label: 'Throughput / cycle time', value: 'throughput' },
-  { label: 'Onboarding speed', value: 'onboarding' },
-  { label: 'Cost reduction', value: 'cost' },
+const PAIN_OPTS: {label:string; value:Pain; hint?:string}[] = [
+  { label: 'Staff retention', value: 'retention', hint: 'Reduce regretted churn & hiring cost' },
+  { label: 'Employee engagement', value: 'engagement', hint: 'Boost eNPS & participation' },
+  { label: 'Output quality / rework', value: 'quality', hint: 'Fewer errors, better first-pass' },
+  { label: 'Throughput / cycle time', value: 'throughput', hint: 'Ship faster with fewer blockers' },
+  { label: 'Onboarding speed', value: 'onboarding', hint: 'Ramp new hires quicker' },
+  { label: 'Cost reduction', value: 'cost', hint: 'Do more with the same budget' },
 ];
 
 const symbol = (c: Currency) => (c === 'EUR' ? '€' : c === 'USD' ? '$' : '£');
 
 /* ---------- Helper logic ---------- */
 function suggestedHours(team: Team, maturity: number) {
+  // maturity 1 -> ~5h/w; 10 -> ~1h/w; slight team adjustments
   const s = Math.max(1, Math.min(10, maturity));
-  const base = 5 - ((s - 1) * (4 / 9)); // maturity 1 -> ~5h/w; 10 -> ~1h/w
+  const base = 5 - ((s - 1) * (4 / 9));
   const teamAdj = team === 'support' ? 0.5 : team === 'product' ? -0.5 : 0;
   const hrs = Math.max(0.5, base + teamAdj);
   return Math.round(hrs * 2) / 2;
@@ -87,7 +88,7 @@ export default function Home() {
 function Calculator() {
   const [step, setStep] = useState(1);
 
-  // Step 1 — Audience
+  // Step 1 — Team (previously “Audience”)
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [team, setTeam] = useState<Team>('all');
   const [employees, setEmployees] = useState<number>(150);
@@ -155,7 +156,8 @@ function Calculator() {
   const btn = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, fontWeight: 800, border: '1px solid #E7ECF7', cursor: 'pointer', background: '#fff' } as const;
   const btnPrimary = { ...btn, background: 'linear-gradient(90deg,#5A7BFF,#3366FE)', color: '#fff', borderColor: 'transparent', boxShadow: '0 8px 20px rgba(31,77,255,.25)' } as const;
 
-  const labels = ['Audience','AI Benchmark','Retention','Training & Duration','Results'];
+  // Stepper labels (first label changed to “Team”)
+  const labels = ['Team','AI Benchmark','Retention','Training & Duration','Results'];
   const pct = Math.min((step - 1) / (labels.length - 1), 1);
 
   return (
@@ -195,13 +197,13 @@ function Calculator() {
         </div>
       </section>
 
-      {/* STEP 1 — Audience */}
+      {/* STEP 1 — Team */}
       {step === 1 && (
         <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>Audience</h3>
+          <h3 style={{ ...h3, color: '#0F172A' }}>Team</h3>
           <div style={gridAuto}>
             <div>
-              <label style={label}>Team</label>
+              <label style={label}>Department</label>
               <select value={team} onChange={e=>setTeam(e.target.value as Team)} style={input}>
                 {TEAMS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
@@ -213,33 +215,46 @@ function Calculator() {
               <input type="number" min={1} value={employees} onChange={e=>setEmployees(Number(e.target.value||0))} style={input}/>
             </div>
 
-            <div>
-              <label style={label}>Focus areas (pick up to 3)</label>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={label}>Improvement areas (select all that apply)</label>
+              {/* Checkbox cards in a 2-row responsive grid */}
+              <div
+                style={{
+                  display:'grid',
+                  gap:10,
+                  gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',
+                  maxWidth: 900, margin:'8px auto 0'
+                }}
+              >
                 {PAIN_OPTS.map(p => {
-                  const active = pains.includes(p.value);
-                  const canPick = active || pains.length < 3;
+                  const checked = pains.includes(p.value);
                   return (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={()=>{
-                        if (active) setPains(pains.filter(x=>x!==p.value));
-                        else if (canPick) setPains([...pains, p.value]);
-                      }}
+                    <label key={p.value}
                       style={{
-                        padding:'8px 12px', borderRadius: 999, fontWeight: 800,
-                        border: '1px solid #E7ECF7',
-                        background: active ? '#3366FE' : '#fff',
-                        color: active ? '#fff' : '#0E1320',
+                        display:'flex', alignItems:'flex-start', gap:10,
+                        border:'1px solid #E7ECF7', borderRadius:12, padding:'10px 12px',
+                        background: checked ? 'rgba(51,102,254,0.06)' : '#fff',
                         cursor:'pointer'
                       }}
                     >
-                      {p.label}
-                    </button>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e)=>{
+                          if (e.target.checked) setPains([...pains, p.value]);
+                          else setPains(pains.filter(x=>x!==p.value));
+                        }}
+                        style={{ marginTop:4, accentColor:'#3366FE' as any }}
+                      />
+                      <span>
+                        <div style={{ fontWeight:800 }}>{p.label}</div>
+                        {p.hint && <div style={{ fontSize:'.85rem', color:'#667085' }}>{p.hint}</div>}
+                      </span>
+                    </label>
                   );
                 })}
               </div>
+              <p style={{...helpDark, marginTop:8}}>We’ll reflect these priorities in the narrative and next steps.</p>
             </div>
 
             <div>
@@ -315,7 +330,7 @@ function Calculator() {
                     onChange={e=>{ userTouchedHours.current = true; setHoursSavedPerWeek(Number(e.target.value||0));}}
                     style={input}
                   />
-                  <p style={helpDark}>Suggested by maturity + team (you can override).</p>
+                  <p style={helpDark}>Suggested by maturity + department (you can override).</p>
                 </div>
               </div>
             </div>
@@ -358,7 +373,7 @@ function Calculator() {
         <section style={card}>
           <h3 style={{ ...h3, color: '#0F172A' }}>Retention</h3>
           <div style={gridAuto}>
-            <FieldNumber label="Baseline annual turnover (%)" value={baselineTurnoverPct} onChange={setBaselineTurnoverPct} min={0} step={1} suffix="%" hint="Typical ranges: 15–30% depending on team." />
+            <FieldNumber label="Baseline annual turnover (%)" value={baselineTurnoverPct} onChange={setBaselineTurnoverPct} min={0} step={1} suffix="%" hint="Typical ranges: 15–30% depending on department." />
             <FieldNumber label="Expected improvement (%)" value={turnoverImprovementPct} onChange={setTurnoverImprovementPct} min={0} step={1} suffix="%" hint="Relative reduction. 10% means 20% → 18%." />
             <FieldNumber label="Replacement cost as % of salary" value={Math.round(replacementCostFactor*100)} onChange={(v)=>setReplacementCostFactor((v||0)/100)} min={0} step={5} suffix="%" hint="Common rule of thumb: ~50% of salary." />
           </div>
@@ -397,7 +412,7 @@ function Calculator() {
             <KPI t="Retention value" v={money(retentionValue)} />
           </div>
           <p style={{ ...helpDark, marginTop:10 }}>
-            Focus areas: {pains.length ? pains.join(', ') : '— none selected'}. Maturity {maturityScore}/10.
+            Improvement areas: {pains.length ? pains.join(', ') : '— none selected'}. Maturity {maturityScore}/10.
           </p>
           <div style={centerRow}>
             <button style={btn} onClick={()=>setStep(1)}>Start over</button>
