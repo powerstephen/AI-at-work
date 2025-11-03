@@ -1,3 +1,5 @@
+import BrandHero from '@/components/BrandHero';
+
 'use client';
 import React, { useMemo, useState } from 'react';
 
