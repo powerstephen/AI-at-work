@@ -1,0 +1,4 @@
+/* minimal reset + Inter fallback */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#F6F8FF; color:#0F172A; }
