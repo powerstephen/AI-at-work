@@ -1,23 +1,25 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-
-export const metadata: Metadata = {
+export const metadata = {
   title: 'AI at Work — Human Productivity ROI',
   description:
-    'Estimate time saved, payback and ROI from upskilling managers and teams on AI.',
+    'Quantify time saved, payback, and retention impact from training managers and teams to work effectively with AI.',
 };
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="app-body">{children}</body>
+    <html lang="en">
+      <head>
+        {/* Inter font */}
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
