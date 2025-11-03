@@ -44,7 +44,7 @@ class EB extends React.Component<{children:React.ReactNode},{err?:Error}> {
   render(){
     if (this.state.err) {
       return (
-        <main style={{ maxWidth: 980, margin:'24px auto', padding:'0 20px' }}>
+        <main style={{ maxWidth: 1120, margin:'24px auto', padding:'0 20px' }}>
           <div style={{ background:'#fff5f5', border:'1px solid #ffd6d6', color:'#7a1f1f', borderRadius:12, padding:16 }}>
             <h2 style={{ marginTop:0 }}>Something went wrong</h2>
             <pre style={{ whiteSpace:'pre-wrap' }}>{String(this.state.err?.message||this.state.err)}</pre>
@@ -68,7 +68,7 @@ export default function Page(){
 }
 
 /* ============================================================
-   Calculator (Top-3 priorities → auto-generated steps)
+   Calculator
 ============================================================ */
 function Calculator(){
   /* ------ Global/basic state ------ */
@@ -90,7 +90,7 @@ function Calculator(){
     setSelected(prev=>{
       const exists = prev.includes(g);
       if (exists) return prev.filter(x=>x!==g);
-      if (prev.length>=3) return prev;
+      if (prev.length>=3) return prev; // cap at 3
       return [...prev, g];
     });
   };
@@ -166,7 +166,6 @@ function Calculator(){
   const upBase = selected.includes('upskilling')
     ? (upCoveragePct/100) * employees * upHoursPerWeek * 52 * hourly * clamp(upUtilPct/100,0,1)
     : 0;
-
   // Overlap guard with Throughput
   const valUpskilling = (selected.includes('throughput') && selected.includes('upskilling'))
     ? upBase * 0.7
@@ -177,21 +176,15 @@ function Calculator(){
   const roiMultiple = programCost>0 ? (annualValue/programCost) : 0;
   const paybackMonths = monthlySavings>0 ? (programCost / monthlySavings) : Infinity;
 
-  /* ------ FIXED: breakdown with proper Goal typing ------ */
-  const valueByGoal: Record<Goal, number> = {
-    throughput: valThroughput,
-    quality: valQuality,
-    onboarding: valOnboarding,
-    retention: valRetention,
-    cost: valCost,
-    upskilling: valUpskilling
-  };
-  const breakdown: {key: Goal; label: string; value: number}[] =
-    (['throughput','quality','onboarding','retention','cost','upskilling'] as Goal[])
-      .map((g)=>({ key: g, label: GOAL_META[g].label, value: valueByGoal[g] }))
-      .filter(row => row.value > 0);
+  // hours by goal for results table
+  const hoursThroughput = selected.includes('throughput') ? tpHoursPerWeek*52*employees : 0;
+  const hoursQuality = selected.includes('quality') ? qlEventsPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix : 0;
+  const hoursUpskilling = selected.includes('upskilling')
+    ? Math.round(((upCoveragePct/100)*employees*upHoursPerWeek*52) * (selected.includes('throughput') ? 0.7 : 1))
+    : 0;
+  const totalHours = Math.round(hoursThroughput + hoursQuality + hoursUpskilling);
 
-  /* ------ Dynamic steps: Basics, Pick, per-goal, Results ------ */
+  /* ------ Steps ------ */
   const steps = useMemo(()=>{
     const arr: {key:string; title:string}[] = [];
     arr.push({ key:'basics', title:'Basics' });
@@ -205,25 +198,30 @@ function Calculator(){
   const gotoPrev = ()=> setStep(s => clamp(s-1, 0, steps.length-1));
 
   /* ============================================================
-     Styles (inline)
+     Styles
   ============================================================ */
   const container = { maxWidth: 1120, margin:'0 auto', padding:'24px 20px 32px', fontFamily:'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial' } as const;
+
   const hero = {
     background: `linear-gradient(135deg, #4B6FFF 0%, ${BLUE} 60%)`,
     color:'#fff', borderRadius:18, boxShadow:'0 18px 40px rgba(15,42,120,.25)',
     padding:18, maxWidth:980, margin:'0 auto 16px', border:'1px solid rgba(255,255,255,.24)'
   } as const;
-  const heroGrid = { display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))' } as const;
-  const heroStat = { border:'1px solid rgba(255,255,255,.35)', borderRadius:12, padding:'10px 12px', background:'rgba(255,255,255,.10)', fontWeight:800 } as const;
+
+  const heroGrid = { display:'grid', gap:10, gridTemplateColumns:'repeat(4, minmax(160px, 1fr))' } as const;
+  const heroStat = { border:'1px solid rgba(255,255,255,.35)', borderRadius:12, padding:'10px 12px', background:'rgba(255,255,255,.10)', fontWeight:800, minHeight:52, display:'flex', alignItems:'center', justifyContent:'center' } as const;
 
   const card = { background:'#fff', border:'1px solid #E7ECF7', borderRadius:16, boxShadow:'0 10px 28px rgba(12,20,38,.08)', padding:18, maxWidth:980, margin:'16px auto' } as const;
   const h3 = { margin:'0 0 .7rem', fontSize:'1.06rem', fontWeight:900, color:'#0F172A' } as const;
-  const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', maxWidth:900, margin:'0 auto' } as const;
-  const twoCol = { display:'grid', gap:14, gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)', alignItems:'start', maxWidth:900, margin:'0 auto' } as const;
+
+  // robust, non-overlapping grids
+  const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', alignItems:'start' } as const;
+  const gridTwo = { display:'grid', gap:14, gridTemplateColumns:'repeat(2,minmax(0,1fr))' } as const;
+
   const centerRow = { maxWidth:980, margin:'16px auto 0', display:'flex', gap:8, justifyContent:'space-between', flexWrap:'wrap' } as const;
 
-  const input = { width:'100%', border:'1px solid #E2E8F5', borderRadius:12, padding:'10px 12px' } as const;
-  const label = { fontWeight:800 } as const;
+  const input = { width:'100%', border:'1px solid #E2E8F5', borderRadius:12, padding:'10px 12px', display:'block' } as const;
+  const label = { fontWeight:800, display:'block', marginBottom:6 } as const;
   const help = { fontSize:'.86rem', color:'#667085' } as const;
 
   const btn = { display:'inline-flex', alignItems:'center', gap:8, padding:'10px 14px', borderRadius:12, fontWeight:800, border:'1px solid #E7ECF7', cursor:'pointer', background:'#fff' } as const;
@@ -233,6 +231,11 @@ function Calculator(){
     borderRadius:999, border:`1px solid ${active?'transparent':'#E7ECF7'}`,
     background: active ? BLUE : '#fff', color: active ? '#fff' : '#0E1320', fontWeight:800, cursor:'pointer'
   } as const);
+
+  const kpiCard = { background:'#fff', border:'1px solid #E8EEFF', borderRadius:14, padding:14, position:'relative', minHeight:84 } as const;
+  const kpiTopBar = { position:'absolute', left:0, top:0, right:0, height:4, borderRadius:'14px 14px 0 0', background:`linear-gradient(90deg,#6D8BFF,${BLUE})` } as const;
+  const kpiLabel = { fontSize:'.76rem', color:'#64748B', fontWeight:800, marginTop:2 } as const;
+  const kpiValue = { fontWeight:900, fontSize:'1.16rem' } as const;
 
   const stepPct = steps.length>1 ? (step/(steps.length-1)) : 0;
 
@@ -329,7 +332,7 @@ function Calculator(){
           <h3 style={h3}>Pick your top 3 priorities</h3>
           <p style={help}>Choose up to three. Reorder them — we’ll build the next steps in that order.</p>
 
-          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', maxWidth:900, margin:'0 auto' }}>
+          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))' }}>
             {(Object.keys(GOAL_META) as Goal[]).map(g=>{
               const on = selected.includes(g);
               return (
@@ -398,98 +401,39 @@ function Calculator(){
         <section style={card}>
           <h3 style={h3}>Results</h3>
 
-          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
-            <KPI t="Total annual value" v={fmtMoney(annualValue, currency)} />
-            <KPI t="Annual ROI" v={`${roiMultiple.toFixed(1)}×`} />
-            <KPI t="Payback" v={Number.isFinite(paybackMonths)?`${paybackMonths.toFixed(1)} mo`:'—'} />
-            <KPI t="Total hours saved (est.)" v={Math.round((
-              (selected.includes('throughput') ? tpHoursPerWeek*52*employees : 0)
-              + (selected.includes('quality') ? qlEventsPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix : 0)
-              + (selected.includes('upskilling') ? (upCoveragePct/100)*employees*upHoursPerWeek*52*(selected.includes('throughput')?0.7:1) : 0)
-            )).toLocaleString()} />
+          {/* KPI ROW */}
+          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', marginBottom:10 }}>
+            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Total annual value</div><div style={kpiValue}>{fmtMoney(annualValue, currency)}</div></div>
+            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Annual ROI</div><div style={kpiValue}>{(roiMultiple||0).toFixed(1)}×</div></div>
+            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Payback</div><div style={kpiValue}>{Number.isFinite(paybackMonths)?`${paybackMonths.toFixed(1)} mo`:'—'}</div></div>
+            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Total hours saved (est.)</div><div style={kpiValue}>{totalHours.toLocaleString()}</div></div>
           </div>
 
-          {/* OPTIONAL: show contributing breakdown if you want to render it later */}
-          {/* breakdown.map(row => <div key={row.key}>{row.label}: {fmtMoney(row.value, currency)}</div>) */}
+          {/* BREAKDOWN TABLE */}
+          <BreakdownTable
+            currency={currency}
+            rows={buildBreakdownRows({
+              currency, hourly, employees,
+              // values
+              valThroughput, valQuality, valOnboarding, valRetention, valCost, valUpskilling,
+              // hours
+              hoursThroughput, hoursQuality, hoursUpskilling,
+              // flags
+              selected, avgSalary, obHiresPerYear, obBaselineRamp, obImprovedRamp, rtBaselineTurnoverPct, rtReductionPct, rtReplacementCostPct, csConsolidationPerMonth, csEliminatedTools, csAvgToolCostPerMonth, upCoveragePct, upHoursPerWeek
+            })}
+          />
 
-          {selected.map(g=>{
-            if (g==='throughput') {
-              const hours = tpHoursPerWeek*52*employees;
-              const val   = tpHoursPerWeek * 52 * employees * hourly * clamp(tpUtilPct/100,0,1);
-              return (
-                <GoalCard key={g} title={GOAL_META[g].label} hint="Cycle-time gains from AI-augmented workflows.">
-                  <MiniKPI t="Hours / year" v={hours.toLocaleString()} />
-                  <MiniKPI t="Value / year"  v={fmtMoney(val, currency)} />
-                  <p style={{ margin:0, color:'#475569' }}>Assuming {tpHoursPerWeek}h saved/person/week, {employees} employees, {Math.round(tpUtilPct)}% utilization.</p>
-                </GoalCard>
-              );
-            }
-            if (g==='quality') {
-              const hours = qlEventsPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix;
-              const val   = hours * hourly * clamp(tpUtilPct/100,0,1);
-              return (
-                <GoalCard key={g} title={GOAL_META[g].label} hint="Fewer rework cycles; better first-pass quality.">
-                  <MiniKPI t="Hours avoided / year" v={Math.round(hours).toLocaleString()} />
-                  <MiniKPI t="Value / year"         v={fmtMoney(val, currency)} />
-                  <p style={{ margin:0, color:'#475569' }}>{qlEventsPerPersonPerMonth}/person/month rework, {qlReductionPct}% reduction, {qlHoursPerFix}h per fix.</p>
-                </GoalCard>
-              );
-            }
-            if (g==='onboarding') {
-              const monthsSaved = clamp(obBaselineRamp - Math.min(obBaselineRamp, obImprovedRamp), 0, 24);
-              const val         = monthsSaved * obHiresPerYear * (avgSalary/12) * clamp(tpUtilPct/100,0,1);
-              return (
-                <GoalCard key={g} title={GOAL_META[g].label} hint="Faster ramp from AI playbooks & guided practice.">
-                  <MiniKPI t="Months saved / hire" v={monthsSaved.toFixed(1)} />
-                  <MiniKPI t="Value / year"        v={fmtMoney(val, currency)} />
-                  <p style={{ margin:0, color:'#475569' }}>{obHiresPerYear} hires/yr, {obBaselineRamp}→{obImprovedRamp} months ramp, salary {symbol(currency)}{avgSalary.toLocaleString()}.</p>
-                </GoalCard>
-              );
-            }
-            if (g==='retention') {
-              const avoided = employees*(rtBaselineTurnoverPct/100)*(rtReductionPct/100);
-              const val     = avoided * (avgSalary*(rtReplacementCostPct/100));
-              return (
-                <GoalCard key={g} title={GOAL_META[g].label} hint="Keep skilled talent; avoid replacement costs.">
-                  <MiniKPI t="Avoided attrition / yr" v={avoided.toFixed(1)} />
-                  <MiniKPI t="Value / year"           v={fmtMoney(val, currency)} />
-                  <p style={{ margin:0, color:'#475569' }}>{rtBaselineTurnoverPct}% baseline turnover, {rtReductionPct}% reduction, replacement cost {rtReplacementCostPct}% of salary.</p>
-                </GoalCard>
-              );
-            }
-            if (g==='cost') {
-              const val = (csConsolidationPerMonth + csEliminatedTools*csAvgToolCostPerMonth) * 12;
-              return (
-                <GoalCard key={g} title={GOAL_META[g].label} hint="Do more with fewer overlapping tools.">
-                  <MiniKPI t="Direct savings / year" v={fmtMoney(val, currency)} />
-                  <p style={{ margin:0, color:'#475569' }}>{symbol(currency)}{csConsolidationPerMonth.toLocaleString()}/mo consolidation, {csEliminatedTools} tools @ {symbol(currency)}{csAvgToolCostPerMonth}/mo each.</p>
-                </GoalCard>
-              );
-            }
-            // upskilling
-            const baseHours = (upCoveragePct/100)*employees*upHoursPerWeek*52;
-            const hours = selected.includes('throughput') ? Math.round(baseHours*0.7) : Math.round(baseHours);
-            const val   = (hours * hourly * clamp(upUtilPct/100,0,1));
-            return (
-              <GoalCard key={g} title={GOAL_META[g].label} hint="Competency coverage after training drives steady time savings.">
-                <MiniKPI t="Competency coverage" v={`${upCoveragePct}% of in-scope`} />
-                <MiniKPI t="Hours / year"        v={hours.toLocaleString()} />
-                <MiniKPI t="Value / year"        v={fmtMoney(val, currency)} />
-                <p style={{ margin:0, color:'#475569' }}>
-                  {selected.includes('throughput') ? '30% overlap discount applied (with Throughput).' : 'No overlap discount applied.'}
-                </p>
-              </GoalCard>
-            );
-          })}
-
-          <div style={{ marginTop:12, padding:'12px 14px', border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF' }}>
-            <strong>Next steps:</strong>{' '}
-            {selected.includes('throughput') && 'Map top 3 workflows → ship prompt templates + QA gates. '}
-            {selected.includes('quality') && 'Introduce AI review checkpoints to cut rework. '}
-            {selected.includes('onboarding') && 'Publish role playbooks + guided “first 90 days”. '}
-            {selected.includes('retention') && 'Launch AI Champions cohort; set quarterly ROI reviews. '}
-            {selected.includes('cost') && 'Audit tool overlap; pilot consolidation with one team. '}
-            {selected.includes('upskilling') && 'Set competency targets; measure weekly AI usage in tasks.'}
+          {/* NEXT STEPS */}
+          <div style={{ marginTop:16, padding:'12px 14px', border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF' }}>
+            <strong>Next steps</strong>
+            <ul style={{ margin:'8px 0 0 18px', color:'#475569' }}>
+              {selected.includes('throughput') && <li>Map top 3 workflows → ship prompt templates & QA/guardrails within 2 weeks.</li>}
+              {selected.includes('quality') && <li>Introduce AI review checkpoints to cut rework by {qlReductionPct}% in pilot team.</li>}
+              {selected.includes('onboarding') && <li>Publish role playbooks & guided “first 90 days” to reduce ramp from {obBaselineRamp}→{obImprovedRamp} months.</li>}
+              {selected.includes('retention') && <li>Launch “AI Champions” cohort; set quarterly ROI reviews; track usage to correlate with retention.</li>}
+              {selected.includes('cost') && <li>Audit tool overlap; target {csEliminatedTools} eliminations and {symbol(currency)}{csConsolidationPerMonth}/mo consolidation.</li>}
+              {selected.includes('upskilling') && <li>Set competency coverage target to {upCoveragePct}% and measure weekly AI-in-task usage.</li>}
+            </ul>
           </div>
 
           <div style={centerRow}>
@@ -507,7 +451,152 @@ function Calculator(){
 }
 
 /* ============================================================
-   Reusable pieces
+   Breakdown table
+============================================================ */
+function BreakdownTable({
+  currency,
+  rows
+}: {
+  currency: Currency;
+  rows: {
+    key: string;
+    title: string;
+    hours?: number | null;
+    value: number;
+    note?: string;
+  }[];
+}){
+  const th = { fontSize:12, color:'#64748B', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' } as const;
+  const td = { padding:'8px 0', borderBottom:'1px solid #EEF2FF' } as const;
+  const colGrid = { display:'grid', gridTemplateColumns:'1.2fr .8fr .8fr 1.2fr', gap:12, alignItems:'center' } as const;
+
+  const total = rows.reduce((s,r)=>s+r.value,0);
+
+  return (
+    <div style={{ marginTop:8 }}>
+      <div style={{ ...colGrid, padding:'8px 0' }}>
+        <div style={th}>Area</div>
+        <div style={{ ...th, textAlign:'right' }}>Hours</div>
+        <div style={{ ...th, textAlign:'right' }}>Value</div>
+        <div style={th}>Notes</div>
+      </div>
+      {rows.map(r=>(
+        <div key={r.key} style={colGrid}>
+          <div style={td}><strong>{r.title}</strong></div>
+          <div style={{ ...td, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{r.hours!=null ? r.hours.toLocaleString() : '—'}</div>
+          <div style={{ ...td, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{fmtMoney(r.value, currency)}</div>
+          <div style={{ ...td, color:'#475569' }}>{r.note||''}</div>
+        </div>
+      ))}
+      <div style={{ ...colGrid, padding:'10px 0', borderTop:'2px solid #CBD5FF' }}>
+        <div style={{ fontWeight:900 }}>Total</div>
+        <div style={{ textAlign:'right', fontWeight:900, fontVariantNumeric:'tabular-nums' }}>
+          {rows.every(r=>r.hours==null) ? '—' : rows.reduce((s,r)=>s + (r.hours||0),0).toLocaleString()}
+        </div>
+        <div style={{ textAlign:'right', fontWeight:900, fontVariantNumeric:'tabular-nums' }}>{fmtMoney(total, currency)}</div>
+        <div />
+      </div>
+    </div>
+  );
+}
+
+function buildBreakdownRows(args: {
+  currency: Currency;
+  hourly: number;
+  employees: number;
+
+  valThroughput: number;
+  valQuality: number;
+  valOnboarding: number;
+  valRetention: number;
+  valCost: number;
+  valUpskilling: number;
+
+  hoursThroughput: number;
+  hoursQuality: number;
+  hoursUpskilling: number;
+
+  selected: Goal[];
+
+  avgSalary: number;
+  obHiresPerYear: number;
+  obBaselineRamp: number;
+  obImprovedRamp: number;
+
+  rtBaselineTurnoverPct: number;
+  rtReductionPct: number;
+  rtReplacementCostPct: number;
+
+  csConsolidationPerMonth: number;
+  csEliminatedTools: number;
+  csAvgToolCostPerMonth: number;
+
+  upCoveragePct: number;
+  upHoursPerWeek: number;
+}){
+  const rows: {key:string; title:string; hours?:number|null; value:number; note?:string}[] = [];
+  const s = args.selected;
+
+  if (s.includes('throughput')) {
+    rows.push({
+      key:'throughput',
+      title:'Throughput / Cycle time',
+      hours: Math.round(args.hoursThroughput),
+      value: args.valThroughput,
+      note: `~${args.hoursThroughput.toLocaleString()} hrs saved/year across team via faster cycles`
+    });
+  }
+  if (s.includes('quality')) {
+    rows.push({
+      key:'quality',
+      title:'Quality / Rework',
+      hours: Math.round(args.hoursQuality),
+      value: args.valQuality,
+      note: `Fewer rework loops → reclaimed time`
+    });
+  }
+  if (s.includes('onboarding')) {
+    const monthsSaved = Math.max(args.obBaselineRamp - Math.min(args.obBaselineRamp, args.obImprovedRamp), 0);
+    rows.push({
+      key:'onboarding',
+      title:'Onboarding speed',
+      hours: null,
+      value: args.valOnboarding,
+      note: `${args.obHiresPerYear} hires/yr, ${args.obBaselineRamp}→${args.obImprovedRamp} mo ramp`
+    });
+  }
+  if (s.includes('retention')) {
+    rows.push({
+      key:'retention',
+      title:'Retention',
+      hours: null,
+      value: args.valRetention,
+      note: `Avoided replacement costs from lower regretted churn`
+    });
+  }
+  if (s.includes('cost')) {
+    rows.push({
+      key:'cost',
+      title:'Cost (tooling)',
+      hours: null,
+      value: args.valCost,
+      note: `${args.csEliminatedTools} tools removed; +${symbol(args.currency)}${args.csConsolidationPerMonth}/mo consolidation`
+    });
+  }
+  if (s.includes('upskilling')) {
+    rows.push({
+      key:'upskilling',
+      title:'Upskilling',
+      hours: Math.round(args.hoursUpskilling),
+      value: args.valUpskilling,
+      note: `${args.upCoveragePct}% competency coverage, ~${args.upHoursPerWeek}h/week per competent`
+    });
+  }
+  return rows;
+}
+
+/* ============================================================
+   Reusable inputs
 ============================================================ */
 function FieldNumber({
   label, value, onChange, min, max, step
@@ -515,8 +604,8 @@ function FieldNumber({
   label:string; value:number; onChange:(v:number)=>void; min?:number; max?:number; step?:number;
 }){
   return (
-    <div>
-      <label style={{ fontWeight:800 }}>{label}</label>
+    <div style={{ minWidth:0 }}>
+      <label style={{ fontWeight:800, display:'block', marginBottom:6 }}>{label}</label>
       <input
         type="number"
         value={value}
@@ -524,7 +613,7 @@ function FieldNumber({
         max={max}
         step={step}
         onChange={e=>onChange(Number(e.target.value||0))}
-        style={{ width:'100%', border:'1px solid #E2E8F5', borderRadius:12, padding:'10px 12px' }}
+        style={{ width:'100%', border:'1px solid #E2E8F5', borderRadius:12, padding:'10px 12px', display:'block' }}
       />
     </div>
   );
@@ -537,37 +626,6 @@ function IconBtn({ title, onClick, children }:{ title:string; onClick:()=>void; 
       style={{ padding:'6px 8px', borderRadius:10, border:'1px solid #E7ECF7', background:'#fff', cursor:'pointer', fontWeight:800 }}>
       {children}
     </button>
-  );
-}
-
-function KPI({ t, v }:{ t:string; v:string }){
-  return (
-    <div style={{ background:'#fff', border:'1px solid #E8EEFF', borderRadius:14, padding:14, position:'relative' }}>
-      <div style={{ position:'absolute', left:0, top:0, right:0, height:4, borderRadius:'14px 14px 0 0', background:`linear-gradient(90deg,#6D8BFF,${BLUE})` }} />
-      <div style={{ fontSize:'.76rem', color:'#64748B', fontWeight:800, marginTop:2 }}>{t}</div>
-      <div style={{ fontWeight:900, fontSize:'1.16rem' }}>{v}</div>
-    </div>
-  );
-}
-
-function MiniKPI({ t, v }:{ t:string; v:string }){
-  return (
-    <div style={{ background:'#fff', border:'1px solid #EDF2FF', borderRadius:12, padding:'8px 10px' }}>
-      <div style={{ fontSize:12, color:'#64748B', fontWeight:800 }}>{t}</div>
-      <div style={{ fontWeight:900 }}>{v}</div>
-    </div>
-  );
-}
-
-function GoalCard({ title, hint, children }:{ title:string; hint?:string; children:React.ReactNode }){
-  return (
-    <div style={{ marginTop:12, border:'1px solid #E7ECF7', borderRadius:14, padding:14 }}>
-      <div style={{ fontWeight:900 }}>{title}</div>
-      {hint && <div style={{ fontSize:12, color:'#667085', marginBottom:8 }}>{hint}</div>}
-      <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))' }}>
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -604,7 +662,7 @@ function GoalStep(props: {
   const { goal, currency, employees, hourly, onBack, onNext } = props;
   const card = { background:'#fff', border:'1px solid #E7ECF7', borderRadius:16, boxShadow:'0 10px 28px rgba(12,20,38,.08)', padding:18, maxWidth:980, margin:'16px auto' } as const;
   const h3 = { margin:'0 0 .7rem', fontSize:'1.06rem', fontWeight:900, color:'#0F172A' } as const;
-  const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', maxWidth:900, margin:'0 auto' } as const;
+  const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', alignItems:'start' } as const;
   const help = { fontSize:'.86rem', color:'#667085' } as const;
   const btn = { display:'inline-flex', alignItems:'center', gap:8, padding:'10px 14px', borderRadius:12, fontWeight:800, border:'1px solid #E7ECF7', cursor:'pointer', background:'#fff' } as const;
   const btnPrimary = { ...btn, background:`linear-gradient(90deg,#5A7BFF,${BLUE})`, color:'#fff', borderColor:'transparent', boxShadow:'0 8px 20px rgba(31,77,255,.25)' } as const;
