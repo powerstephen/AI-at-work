@@ -1,10 +1,10 @@
 'use client';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
-/* ---------- Types & constants ---------- */
+/* ============ Types & constants ============ */
 type Team = 'all'|'hr'|'ops'|'marketing'|'sales'|'support'|'product';
 type Currency = 'EUR'|'USD'|'GBP';
-type Pain = 'retention'|'engagement'|'quality'|'throughput'|'onboarding'|'cost';
+type Goal = 'throughput'|'quality'|'onboarding'|'retention'|'cost';
 
 const TEAMS: {label:string; value:Team}[] = [
   { label: 'Company-wide', value: 'all' },
@@ -16,47 +16,69 @@ const TEAMS: {label:string; value:Team}[] = [
   { label: 'Product', value: 'product' },
 ];
 
-const PAIN_OPTS: {label:string; value:Pain; hint?:string}[] = [
-  { label: 'Staff retention', value: 'retention', hint: 'Reduce regretted churn & hiring cost' },
-  { label: 'Employee engagement', value: 'engagement', hint: 'Boost eNPS & participation' },
-  { label: 'Output quality / rework', value: 'quality', hint: 'Fewer errors, better first-pass' },
-  { label: 'Throughput / cycle time', value: 'throughput', hint: 'Ship faster with fewer blockers' },
-  { label: 'Onboarding speed', value: 'onboarding', hint: 'Ramp new hires quicker' },
-  { label: 'Cost reduction', value: 'cost', hint: 'Do more with the same budget' },
-];
+const GOAL_META: Record<Goal, {label:string; hint:string}> = {
+  throughput: { label: 'Throughput / Cycle time', hint: 'Ship more with fewer blockers' },
+  quality:    { label: 'Quality / Rework reduction', hint: 'Fewer errors, less rework' },
+  onboarding: { label: 'Onboarding speed', hint: 'Faster time-to-productivity' },
+  retention:  { label: 'Retention', hint: 'Avoid regretted churn & hiring cost' },
+  cost:       { label: 'Cost', hint: 'Tool consolidation & direct savings' },
+};
 
 const symbol = (c: Currency) => (c === 'EUR' ? '€' : c === 'USD' ? '$' : '£');
 
-/* ---------- Helper logic ---------- */
-function suggestedHours(team: Team, maturity: number) {
-  // maturity 1 -> ~5h/w; 10 -> ~1h/w; slight team adjustments
-  const s = Math.max(1, Math.min(10, maturity));
-  const base = 5 - ((s - 1) * (4 / 9));
-  const teamAdj = team === 'support' ? 0.5 : team === 'product' ? -0.5 : 0;
-  const hrs = Math.max(0.5, base + teamAdj);
-  return Math.round(hrs * 2) / 2;
-}
-function maturityDetail(score: number) {
-  const v = Math.round(score);
-  if (v <= 2) return '1–2. Early: ad-hoc experiments; big wins from prompt basics + workflow mapping.';
-  if (v <= 4) return '3–4. Isolated champions; add templates, shared prompt library, QA gates.';
-  if (v <= 6) return '5–6. Growing adoption; standardize stack, add measurement, weekly enablement.';
-  if (v <= 8) return '7–8. Operationalized; embed in SOPs, connect data, track KPIs.';
-  return '9–10. Best-in-class; scale champions, role playbooks, quarterly ROI reviews.';
-}
-function calcProductivityAnnual(avgSalary:number, hoursPerWeek:number, employees:number) {
-  const hourly = avgSalary / (52 * 40);
-  const util = 0.7;
-  const totalHours = hoursPerWeek * 52 * employees;
-  return hourly * util * totalHours;
-}
-function calcRetentionValue(avgSalary:number, employees:number, baselineTurnoverPct:number, improvementPct:number, replacementCostFactor:number) {
-  const avoided = employees * (baselineTurnoverPct/100) * (improvementPct/100);
-  const replaceCost = avgSalary * replacementCostFactor;
-  return avoided * replaceCost;
+/* ============ Math helpers (formulas) ============ */
+function hourlyCostFromSalary(avgSalary:number) {
+  return avgSalary / (52 * 40);
 }
 
-/* ---------- Error boundary to avoid blank screen ---------- */
+// Throughput
+function throughputValueYear(opts: {
+  hoursPerWeek: number; employees:number; hourlyCost:number; utilization:number;
+}) {
+  const { hoursPerWeek, employees, hourlyCost, utilization } = opts;
+  const hours = Math.max(0, hoursPerWeek) * 52 * Math.max(0, employees);
+  return hours * hourlyCost * Math.max(0, Math.min(1, utilization));
+}
+
+// Quality / rework
+function qualityValueYear(opts: {
+  reworkPerPersonPerMonth:number; reductionPct:number; hoursPerFix:number; employees:number; hourlyCost:number; utilization:number;
+}) {
+  const { reworkPerPersonPerMonth, reductionPct, hoursPerFix, employees, hourlyCost, utilization } = opts;
+  const avoidedEventsPerYear = reworkPerPersonPerMonth * employees * 12 * (Math.max(0, reductionPct)/100);
+  const hoursSaved = avoidedEventsPerYear * Math.max(0, hoursPerFix);
+  return hoursSaved * hourlyCost * Math.max(0, Math.min(1, utilization));
+}
+
+// Onboarding
+function onboardingValueYear(opts: {
+  hiresPerYear:number; baselineRampMonths:number; improvedRampMonths:number; avgSalary:number; utilization:number;
+}) {
+  const { hiresPerYear, baselineRampMonths, improvedRampMonths, avgSalary, utilization } = opts;
+  const monthsSaved = Math.max(0, baselineRampMonths - improvedRampMonths);
+  const productiveValuePerMonth = (avgSalary/12) * Math.max(0, Math.min(1, utilization));
+  return monthsSaved * Math.max(0, hiresPerYear) * productiveValuePerMonth;
+}
+
+// Retention
+function retentionValueYear(opts: {
+  employees:number; baselineTurnoverPct:number; reductionPct:number; avgSalary:number; replacementCostPct:number;
+}) {
+  const { employees, baselineTurnoverPct, reductionPct, avgSalary, replacementCostPct } = opts;
+  const avoidedLeavers = employees * (Math.max(0, baselineTurnoverPct)/100) * (Math.max(0, reductionPct)/100);
+  const replacementCost = avgSalary * (Math.max(0, replacementCostPct)/100);
+  return avoidedLeavers * replacementCost;
+}
+
+// Cost (direct)
+function costValueYear(opts: {
+  consolidationSavingsPerMonth:number; eliminatedTools:number; avgToolCostPerMonth:number;
+}) {
+  const { consolidationSavingsPerMonth, eliminatedTools, avgToolCostPerMonth } = opts;
+  return (Math.max(0, consolidationSavingsPerMonth) + Math.max(0, eliminatedTools) * Math.max(0, avgToolCostPerMonth)) * 12;
+}
+
+/* ============ Error boundary (avoid blank screen) ============ */
 class EB extends React.Component<{children:React.ReactNode},{err?:Error}> {
   constructor(p:any){super(p); this.state={};}
   static getDerivedStateFromError(e:Error){return {err:e};}
@@ -76,7 +98,7 @@ class EB extends React.Component<{children:React.ReactNode},{err?:Error}> {
   }
 }
 
-/* ---------- Main ---------- */
+/* ============ Main page ============ */
 export default function Home() {
   return (
     <EB>
@@ -85,51 +107,122 @@ export default function Home() {
   );
 }
 
+/* ============ Calculator ============ */
 function Calculator() {
   const [step, setStep] = useState(1);
 
-  // Step 1 — Team
+  // Step 1 — Basics
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [team, setTeam] = useState<Team>('all');
   const [employees, setEmployees] = useState<number>(150);
-  const [pains, setPains] = useState<Pain[]>([]);
 
-  // Step 2 — AI Benchmark (Maturity + Hours)
-  const [maturityScore, setMaturityScore] = useState<number>(5);
-  const [hoursSavedPerWeek, setHoursSavedPerWeek] = useState<number>(3);
-  const userTouchedHours = useRef(false);
+  // Step 2 — Goals & Weighting
+  const [selected, setSelected] = useState<Record<Goal, boolean>>({
+    throughput: true,
+    quality: false,
+    onboarding: false,
+    retention: true,
+    cost: false
+  });
+  const [weights, setWeights] = useState<Record<Goal, number>>({
+    throughput: 70,
+    quality: 50,
+    onboarding: 50,
+    retention: 70,
+    cost: 40
+  });
 
-  // Step 3 — Retention
-  const [baselineTurnoverPct, setBaselineTurnoverPct] = useState<number>(20);
-  const [turnoverImprovementPct, setTurnoverImprovementPct] = useState<number>(10);
-  const [replacementCostFactor, setReplacementCostFactor] = useState<number>(0.5);
-
-  // Step 4 — Training & Duration
-  const [trainingPerEmployee, setTrainingPerEmployee] = useState<number>(850);
+  // Step 3 — Assumptions (only render per selected goal)
+  // Common
   const [avgSalary, setAvgSalary] = useState<number>(52000);
+  const [trainingPerEmployee, setTrainingPerEmployee] = useState<number>(850);
   const [durationMonths, setDurationMonths] = useState<number>(3);
+  const hourly = useMemo(()=>hourlyCostFromSalary(avgSalary), [avgSalary]);
 
-  useEffect(() => {
-    if (!userTouchedHours.current) setHoursSavedPerWeek(suggestedHours(team, maturityScore));
-  }, [team, maturityScore]);
+  // Throughput
+  const [tpHoursPerWeek, setTpHoursPerWeek] = useState<number>(3.0);
+  const [tpUtilization, setTpUtilization] = useState<number>(70); // percent
 
-  const productivityAnnual = useMemo(
-    () => calcProductivityAnnual(avgSalary, hoursSavedPerWeek, employees),
-    [avgSalary, hoursSavedPerWeek, employees]
-  );
-  const retentionValue = useMemo(
-    () => calcRetentionValue(avgSalary, employees, baselineTurnoverPct, turnoverImprovementPct, replacementCostFactor),
-    [avgSalary, employees, baselineTurnoverPct, turnoverImprovementPct, replacementCostFactor]
-  );
+  // Quality
+  const [qlReworkPerPersonPerMonth, setQlReworkPerPersonPerMonth] = useState<number>(3);
+  const [qlReductionPct, setQlReductionPct] = useState<number>(20);
+  const [qlHoursPerFix, setQlHoursPerFix] = useState<number>(1);
+
+  // Onboarding
+  const [obHiresPerYear, setObHiresPerYear] = useState<number>(24);
+  const [obBaselineRamp, setObBaselineRamp] = useState<number>(3);
+  const [obImprovedRamp, setObImprovedRamp] = useState<number>(2);
+
+  // Retention
+  const [rtBaselineTurnoverPct, setRtBaselineTurnoverPct] = useState<number>(20);
+  const [rtReductionPct, setRtReductionPct] = useState<number>(10);
+  const [rtReplacementCostPct, setRtReplacementCostPct] = useState<number>(50);
+
+  // Cost
+  const [csConsolidationPerMonth, setCsConsolidationPerMonth] = useState<number>(0);
+  const [csEliminatedTools, setCsEliminatedTools] = useState<number>(0);
+  const [csAvgToolCostPerMonth, setCsAvgToolCostPerMonth] = useState<number>(200);
+
+  // Program cost
   const programCost = trainingPerEmployee * employees * (durationMonths / 12);
-  const annualValue = productivityAnnual + retentionValue;
+
+  // Values per goal (only if selected)
+  const valThroughput = selected.throughput
+    ? throughputValueYear({
+        hoursPerWeek: tpHoursPerWeek,
+        employees,
+        hourlyCost: hourly,
+        utilization: tpUtilization/100
+      })
+    : 0;
+
+  const valQuality = selected.quality
+    ? qualityValueYear({
+        reworkPerPersonPerMonth: qlReworkPerPersonPerMonth,
+        reductionPct: qlReductionPct,
+        hoursPerFix: qlHoursPerFix,
+        employees,
+        hourlyCost: hourly,
+        utilization: tpUtilization/100 // reuse utilization for simplicity
+      })
+    : 0;
+
+  const valOnboarding = selected.onboarding
+    ? onboardingValueYear({
+        hiresPerYear: obHiresPerYear,
+        baselineRampMonths: obBaselineRamp,
+        improvedRampMonths: Math.min(obBaselineRamp, obImprovedRamp),
+        avgSalary,
+        utilization: tpUtilization/100
+      })
+    : 0;
+
+  const valRetention = selected.retention
+    ? retentionValueYear({
+        employees,
+        baselineTurnoverPct: rtBaselineTurnoverPct,
+        reductionPct: rtReductionPct,
+        avgSalary,
+        replacementCostPct: rtReplacementCostPct
+      })
+    : 0;
+
+  const valCost = selected.cost
+    ? costValueYear({
+        consolidationSavingsPerMonth: csConsolidationPerMonth,
+        eliminatedTools: csEliminatedTools,
+        avgToolCostPerMonth: csAvgToolCostPerMonth
+      })
+    : 0;
+
+  const annualValue = valThroughput + valQuality + valOnboarding + valRetention + valCost;
   const monthlySavings = annualValue / 12;
-  const roiMultiple = programCost > 0 ? annualValue / programCost : Infinity;
+  const roiMultiple = programCost > 0 ? annualValue / programCost : 0;
   const paybackMonths = monthlySavings > 0 ? programCost / monthlySavings : Infinity;
 
   const money = (n:number) => new Intl.NumberFormat('en', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
 
-  // Styles
+  /* ============ Styles (kept inline for simplicity) ============ */
   const container = { maxWidth: 1120, margin: '0 auto', padding: '24px 20px 32px', fontFamily:'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial' } as const;
   const hero = {
     background: 'linear-gradient(135deg, #4B6FFF 0%, #3366FE 60%)',
@@ -156,23 +249,22 @@ function Calculator() {
   const btn = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, fontWeight: 800, border: '1px solid #E7ECF7', cursor: 'pointer', background: '#fff' } as const;
   const btnPrimary = { ...btn, background: 'linear-gradient(90deg,#5A7BFF,#3366FE)', color: '#fff', borderColor: 'transparent', boxShadow: '0 8px 20px rgba(31,77,255,.25)' } as const;
 
-  // Stepper labels
-  const labels = ['Team','AI Benchmark','Retention','Training & Duration','Results'];
+  const labels = ['Basics','Goals & Weighting','Assumptions','Results'];
   const pct = Math.min((step - 1) / (labels.length - 1), 1);
 
   return (
     <main style={container}>
-      {/* Blue hero */}
+      {/* Hero */}
       <section style={hero}>
         <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900 }}>AI at Work — Human Productivity ROI</h1>
         <p style={{ margin: '6px 0 10px', color: 'rgba(255,255,255,.9)' }}>
           Quantify time saved, payback, and retention impact from training managers and teams to work effectively with AI.
         </p>
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
-          <div style={heroStat}>Monthly savings</div>
           <div style={heroStat}>Payback (months)</div>
           <div style={heroStat}>Annual ROI (×)</div>
-          <div style={heroStat}>Hours saved / year</div>
+          <div style={heroStat}>Total Annual Value</div>
+          <div style={heroStat}>Total Hours Saved</div>
         </div>
       </section>
 
@@ -197,10 +289,10 @@ function Calculator() {
         </div>
       </section>
 
-      {/* STEP 1 — Team */}
+      {/* STEP 1 — Basics */}
       {step === 1 && (
         <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>Team</h3>
+          <h3 style={{ ...h3, color: '#0F172A' }}>Basics</h3>
           <div style={gridAuto}>
             <div>
               <label style={label}>Department</label>
@@ -213,47 +305,6 @@ function Calculator() {
             <div>
               <label style={label}>Employees in scope</label>
               <input type="number" min={1} value={employees} onChange={e=>setEmployees(Number(e.target.value||0))} style={input}/>
-            </div>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={label}>Improvement areas (select all that apply)</label>
-              <div
-                style={{
-                  display:'grid',
-                  gap:10,
-                  gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',
-                  maxWidth: 900, margin:'8px auto 0'
-                }}
-              >
-                {PAIN_OPTS.map(p => {
-                  const checked = pains.includes(p.value);
-                  return (
-                    <label key={p.value}
-                      style={{
-                        display:'flex', alignItems:'flex-start', gap:10,
-                        border:'1px solid #E7ECF7', borderRadius:12, padding:'10px 12px',
-                        background: checked ? 'rgba(51,102,254,0.06)' : '#fff',
-                        cursor:'pointer'
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e)=>{
-                          if (e.target.checked) setPains([...pains, p.value]);
-                          else setPains(pains.filter(x=>x!==p.value));
-                        }}
-                        style={{ marginTop:4, accentColor:'#3366FE' as any }}
-                      />
-                      <span>
-                        <div style={{ fontWeight:800 }}>{p.label}</div>
-                        {p.hint && <div style={{ fontSize:'.85rem', color:'#667085' }}>{p.hint}</div>}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p style={{...helpDark, marginTop:8}}>We’ll reflect these priorities in the narrative and next steps.</p>
             </div>
 
             <div>
@@ -284,85 +335,46 @@ function Calculator() {
         </section>
       )}
 
-      {/* STEP 2 — AI Benchmark (slider + compact live box) */}
+      {/* STEP 2 — Goals & Weighting */}
       {step === 2 && (
         <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>AI Benchmark</h3>
-          <div style={twoCol}>
-            {/* Left: Slider + description + hours override */}
-            <div style={{ paddingRight: 8 }}>
-              <label style={{ fontWeight: 800, display:'block' }}>AI Maturity</label>
+          <h3 style={{ ...h3, color: '#0F172A' }}>Goals & Weighting</h3>
+          <p style={helpDark}>Pick what matters. We’ll tailor assumptions and results to these goals.</p>
 
-              {/* Slider */}
-              <div style={{ marginTop:10 }}>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  step={1}
-                  value={maturityScore}
-                  onChange={(e)=>{
-                    const val = Number(e.target.value);
-                    setMaturityScore(val);
-                    if (!userTouchedHours.current) setHoursSavedPerWeek(suggestedHours(team, val));
-                  }}
-                  style={{ width:'100%' }}
-                />
-                {/* Tick labels 1..10 */}
-                <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#667085', marginTop:4 }}>
-                  {Array.from({length:10}).map((_,i)=><span key={i}>{i+1}</span>)}
+          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', maxWidth:900, margin:'0 auto' }}>
+            {(Object.keys(GOAL_META) as Goal[]).map(g=>{
+              const m = GOAL_META[g];
+              const on = selected[g];
+              return (
+                <div key={g} style={{ border:'1px solid #E7ECF7', borderRadius:14, padding:12, background: on ? 'rgba(51,102,254,.06)' : '#fff' }}>
+                  <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={e=>setSelected(s=>({ ...s, [g]: e.target.checked }))}
+                      style={{ accentColor:'#3366FE' as any }}
+                    />
+                    <div>
+                      <div style={{ fontWeight:900 }}>{m.label}</div>
+                      <div style={{ fontSize:'.86rem', color:'#667085' }}>{m.hint}</div>
+                    </div>
+                  </label>
+
+                  {/* priority slider */}
+                  <div style={{ marginTop:10, opacity:on?1:.5 }}>
+                    <div style={{ fontSize:12, fontWeight:800, color:'#475569', marginBottom:4 }}>Priority</div>
+                    <input
+                      type="range" min={0} max={100} step={5}
+                      disabled={!on}
+                      value={weights[g]}
+                      onChange={e=>setWeights(w=>({ ...w, [g]: Number(e.target.value) }))}
+                      style={{ width:'100%' }}
+                    />
+                    <div style={{ fontSize:12, color:'#667085' }}>{weights[g]}%</div>
+                  </div>
                 </div>
-              </div>
-
-              {/* Bold description */}
-              <div style={{
-                marginTop:12,
-                border:'1px solid #EEF2FF',
-                background:'#F8FAFF',
-                padding:'12px 14px',
-                borderRadius:12,
-                fontWeight:800,
-                color:'#0F172A'
-              }}>
-                {maturityDetail(maturityScore)}
-              </div>
-
-              {/* Hours override */}
-              <div style={{ ...gridAuto as any, marginTop:12 }}>
-                <div>
-                  <label style={{ fontWeight: 800 }}>Hours saved per person / week (override)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={hoursSavedPerWeek}
-                    onChange={e=>{ userTouchedHours.current = true; setHoursSavedPerWeek(Number(e.target.value||0));}}
-                    style={input}
-                  />
-                  <p style={helpDark}>Suggested by maturity + department (you can override).</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Compact live box (4 items, no money) */}
-            <div style={{
-              marginTop: 4, borderRadius: 14, padding: 12, color: '#fff',
-              border: '1px solid rgba(255,255,255,.35)',
-              background: 'linear-gradient(135deg, #4B6FFF, #3366FE)',
-              boxShadow: '0 12px 30px rgba(15,42,120,.25)', width: '100%'
-            }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                <div style={{ fontWeight: 900 }}>Live</div>
-                <div style={{ padding:'4px 8px', borderRadius:999, border:'1px solid rgba(255,255,255,.4)', background:'rgba(255,255,255,.15)', fontWeight:900 }}>Updated</div>
-              </div>
-
-              <div style={{ display:'grid', gap:8, gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
-                <Box t="Maturity level" v={`${maturityScore}/10`} />
-                <Box t="Employees in scope" v={employees.toLocaleString()} />
-                <Box t="Hours / employee (wk)" v={`${hoursSavedPerWeek.toFixed(1)}`} />
-                <Box t="Total hours / year" v={(Math.round(hoursSavedPerWeek*52*employees)).toLocaleString() + ' hrs'} />
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           <div style={centerRow}>
@@ -372,15 +384,78 @@ function Calculator() {
         </section>
       )}
 
-      {/* STEP 3 — Retention */}
+      {/* STEP 3 — Assumptions (conditional blocks) */}
       {step === 3 && (
         <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>Retention</h3>
+          <h3 style={{ ...h3, color: '#0F172A' }}>Assumptions</h3>
+          <p style={helpDark}>We prefilled sensible defaults. Adjust if needed.</p>
+
+          {/* Common */}
           <div style={gridAuto}>
-            <FieldNumber label="Baseline annual turnover (%)" value={baselineTurnoverPct} onChange={setBaselineTurnoverPct} min={0} step={1} suffix="%" hint="Typical ranges: 15–30% depending on department." />
-            <FieldNumber label="Expected improvement (%)" value={turnoverImprovementPct} onChange={setTurnoverImprovementPct} min={0} step={1} suffix="%" hint="Relative reduction. 10% means 20% → 18%." />
-            <FieldNumber label="Replacement cost as % of salary" value={Math.round(replacementCostFactor*100)} onChange={(v)=>setReplacementCostFactor((v||0)/100)} min={0} step={5} suffix="%" hint="Common rule of thumb: ~50% of salary." />
+            <FieldNumber label={`Average annual salary (${symbol(currency)})`} value={avgSalary} onChange={setAvgSalary} step={1000} />
+            <FieldNumber label={`Training per employee (${symbol(currency)})`} value={trainingPerEmployee} onChange={setTrainingPerEmployee} step={25} />
+            <FieldNumber label="Program duration (months)" value={durationMonths} onChange={setDurationMonths} min={1} step={1} />
           </div>
+
+          {/* Throughput */}
+          {selected.throughput && (
+            <>
+              <h4 style={{ margin:'16px auto 6px', maxWidth:900, fontSize:'.95rem', fontWeight:900, color:'#0F172A' }}>Throughput / Cycle time</h4>
+              <div style={gridAuto}>
+                <FieldNumber label="Hours saved per person / week" value={tpHoursPerWeek} onChange={setTpHoursPerWeek} step={0.5} />
+                <FieldNumber label="Utilization factor (%)" value={tpUtilization} onChange={setTpUtilization} min={0} max={100} step={5} />
+              </div>
+            </>
+          )}
+
+          {/* Quality */}
+          {selected.quality && (
+            <>
+              <h4 style={{ margin:'16px auto 6px', maxWidth:900, fontSize:'.95rem', fontWeight:900, color:'#0F172A' }}>Quality / Rework reduction</h4>
+              <div style={gridAuto}>
+                <FieldNumber label="Rework events per person / month" value={qlReworkPerPersonPerMonth} onChange={setQlReworkPerPersonPerMonth} step={1} />
+                <FieldNumber label="Expected reduction (%)" value={qlReductionPct} onChange={setQlReductionPct} min={0} max={100} step={1} />
+                <FieldNumber label="Hours per fix" value={qlHoursPerFix} onChange={setQlHoursPerFix} step={0.5} />
+              </div>
+            </>
+          )}
+
+          {/* Onboarding */}
+          {selected.onboarding && (
+            <>
+              <h4 style={{ margin:'16px auto 6px', maxWidth:900, fontSize:'.95rem', fontWeight:900, color:'#0F172A' }}>Onboarding speed</h4>
+              <div style={gridAuto}>
+                <FieldNumber label="New hires per year" value={obHiresPerYear} onChange={setObHiresPerYear} step={1} />
+                <FieldNumber label="Baseline ramp (months)" value={obBaselineRamp} onChange={setObBaselineRamp} step={0.5} />
+                <FieldNumber label="Improved ramp (months)" value={obImprovedRamp} onChange={setObImprovedRamp} step={0.5} />
+              </div>
+            </>
+          )}
+
+          {/* Retention */}
+          {selected.retention && (
+            <>
+              <h4 style={{ margin:'16px auto 6px', maxWidth:900, fontSize:'.95rem', fontWeight:900, color:'#0F172A' }}>Retention</h4>
+              <div style={gridAuto}>
+                <FieldNumber label="Baseline annual turnover (%)" value={rtBaselineTurnoverPct} onChange={setRtBaselineTurnoverPct} min={0} max={100} step={1} />
+                <FieldNumber label="Expected reduction (%)" value={rtReductionPct} onChange={setRtReductionPct} min={0} max={100} step={1} />
+                <FieldNumber label="Replacement cost (% of salary)" value={rtReplacementCostPct} onChange={setRtReplacementCostPct} min={0} max={200} step={5} />
+              </div>
+            </>
+          )}
+
+          {/* Cost */}
+          {selected.cost && (
+            <>
+              <h4 style={{ margin:'16px auto 6px', maxWidth:900, fontSize:'.95rem', fontWeight:900, color:'#0F172A' }}>Cost (direct)</h4>
+              <div style={gridAuto}>
+                <FieldNumber label={`Consolidation savings / month (${symbol(currency)})`} value={csConsolidationPerMonth} onChange={setCsConsolidationPerMonth} step={50} />
+                <FieldNumber label="Eliminated tools (count)" value={csEliminatedTools} onChange={setCsEliminatedTools} step={1} />
+                <FieldNumber label={`Avg tool cost / month (${symbol(currency)})`} value={csAvgToolCostPerMonth} onChange={setCsAvgToolCostPerMonth} step={20} />
+              </div>
+            </>
+          )}
+
           <div style={centerRow}>
             <button style={btn} onClick={()=>setStep(2)}>← Back</button>
             <button style={btnPrimary} onClick={()=>setStep(4)}>Continue →</button>
@@ -388,38 +463,97 @@ function Calculator() {
         </section>
       )}
 
-      {/* STEP 4 — Training & Duration */}
+      {/* STEP 4 — Results (goal-aligned) */}
       {step === 4 && (
         <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>Training & Duration</h3>
-          <div style={gridAuto}>
-            <FieldNumber label={`Training per employee (${symbol(currency)})`} value={trainingPerEmployee} onChange={setTrainingPerEmployee} step={25} />
-            <FieldNumber label={`Average annual salary (${symbol(currency)})`} value={avgSalary} onChange={setAvgSalary} step={1000} />
-            <FieldNumber label="Program duration (months)" value={durationMonths} onChange={setDurationMonths} min={1} step={1} />
+          <h3 style={{ ...h3, color: '#0F172A' }}>Results</h3>
+
+          {/* Top tiles */}
+          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
+            <KPI t="Total annual value" v={money(annualValue)} />
+            <KPI t="Annual ROI" v={`${(programCost>0 ? (annualValue/programCost) : 0).toFixed(1)}×`} />
+            <KPI t="Payback" v={Number.isFinite(paybackMonths) ? `${paybackMonths.toFixed(1)} mo` : '—'} />
+            <KPI t="Total hours saved" v={Math.round((selected.throughput? tpHoursPerWeek*52*employees:0) + (selected.quality? qlReworkPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix:0)).toLocaleString()} />
           </div>
+
+          {/* Per-goal sections, sorted by priority */}
+          {([...Object.keys(selected)] as Goal[])
+            .filter(g=>selected[g])
+            .sort((a,b)=>weights[b]-weights[a])
+            .map(g=>{
+              if (g==='throughput') {
+                const hoursYear = tpHoursPerWeek*52*employees;
+                const value = valThroughput;
+                return (
+                  <GoalCard key={g} title={GOAL_META[g].label} hint="Cycle-time gains from AI-augmented workflows.">
+                    <MiniKPI t="Hours / year" v={hoursYear.toLocaleString()} />
+                    <MiniKPI t="Value / year" v={money(value)} />
+                    <p style={{ margin:0, color:'#475569' }}>
+                      Assuming {tpHoursPerWeek}h saved per person/week, {employees} employees, {Math.round(tpUtilization)}% utilization.
+                    </p>
+                  </GoalCard>
+                );
+              }
+              if (g==='quality') {
+                const hoursYear = qlReworkPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix;
+                const value = valQuality;
+                return (
+                  <GoalCard key={g} title={GOAL_META[g].label} hint="Fewer rework cycles; better first-pass quality.">
+                    <MiniKPI t="Hours avoided / year" v={Math.round(hoursYear).toLocaleString()} />
+                    <MiniKPI t="Value / year" v={money(value)} />
+                    <p style={{ margin:0, color:'#475569' }}>
+                      {qlReworkPerPersonPerMonth}/person/month rework, {qlReductionPct}% reduction, {qlHoursPerFix}h per fix.
+                    </p>
+                  </GoalCard>
+                );
+              }
+              if (g==='onboarding') {
+                const monthsSaved = Math.max(0, obBaselineRamp - obImprovedRamp);
+                return (
+                  <GoalCard key={g} title={GOAL_META[g].label} hint="Faster ramp from AI playbooks & guided practice.">
+                    <MiniKPI t="Months saved / hire" v={monthsSaved.toFixed(1)} />
+                    <MiniKPI t="Value / year" v={money(valOnboarding)} />
+                    <p style={{ margin:0, color:'#475569' }}>
+                      {obHiresPerYear} hires/yr, {obBaselineRamp}→{obImprovedRamp} months ramp, salary {symbol(currency)}{avgSalary.toLocaleString()}.
+                    </p>
+                  </GoalCard>
+                );
+              }
+              if (g==='retention') {
+                return (
+                  <GoalCard key={g} title={GOAL_META[g].label} hint="Keep skilled talent; avoid replacement costs.">
+                    <MiniKPI t="Avoided attrition / yr" v={(employees*(rtBaselineTurnoverPct/100)*(rtReductionPct/100)).toFixed(1)} />
+                    <MiniKPI t="Value / year" v={money(valRetention)} />
+                    <p style={{ margin:0, color:'#475569' }}>
+                      {rtBaselineTurnoverPct}% baseline turnover, {rtReductionPct}% reduction, replacement cost {rtReplacementCostPct}% of salary.
+                    </p>
+                  </GoalCard>
+                );
+              }
+              // cost
+              return (
+                <GoalCard key={g} title={GOAL_META[g].label} hint="Do more with fewer overlapping tools.">
+                  <MiniKPI t="Direct savings / year" v={money(valCost)} />
+                  <p style={{ margin:0, color:'#475569' }}>
+                    {symbol(currency)}{csConsolidationPerMonth.toLocaleString()}/mo consolidation, {csEliminatedTools} tools @ {symbol(currency)}{csAvgToolCostPerMonth}/mo each.
+                  </p>
+                </GoalCard>
+              );
+            })
+          }
+
+          <div style={{ marginTop:12, padding:'12px 14px', border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF' }}>
+            <strong>Next steps (tailored):</strong>{' '}
+            {selected.throughput && 'Map top 3 workflows → create prompt templates & QA gates. '}
+            {selected.quality && 'Add review checklist + AI critique pass before handoff. '}
+            {selected.onboarding && 'Publish role playbooks with task libraries & guided “first 90 days”. '}
+            {selected.retention && 'Launch AI Champions cohort; set quarterly ROI reviews. '}
+            {selected.cost && 'Audit overlapping tools; pilot consolidation with 1 team. '}
+          </div>
+
           <div style={centerRow}>
             <button style={btn} onClick={()=>setStep(3)}>← Back</button>
-            <button style={btnPrimary} onClick={()=>setStep(5)}>Continue →</button>
-          </div>
-        </section>
-      )}
-
-      {/* STEP 5 — Results */}
-      {step === 5 && (
-        <section style={card}>
-          <h3 style={{ ...h3, color: '#0F172A' }}>Results</h3>
-          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(2,minmax(0,1fr))' }}>
-            <KPI t="Monthly savings" v={money(monthlySavings)} />
-            <KPI t="Annual ROI" v={`${(isFinite(roiMultiple)?roiMultiple:0).toFixed(1)}×`} />
-            <KPI t="Payback" v={isFinite(paybackMonths) ? `${paybackMonths.toFixed(1)} mo` : '—'} />
-            <KPI t="Hours saved / year" v={(Math.round(hoursSavedPerWeek*52*employees)).toLocaleString()} />
-            <KPI t="Retention value" v={money(retentionValue)} />
-          </div>
-          <p style={{ ...helpDark, marginTop:10 }}>
-            Improvement areas: {pains.length ? pains.join(', ') : '— none selected'}. Maturity {maturityScore}/10.
-          </p>
-          <div style={centerRow}>
-            <button style={btn} onClick={()=>setStep(1)}>Start over</button>
+            <button style={btnPrimary} onClick={()=>setStep(1)}>Start over</button>
           </div>
         </section>
       )}
@@ -431,12 +565,12 @@ function Calculator() {
   );
 }
 
-/* ---------- Tiny UI bits ---------- */
+/* ============ Small UI helpers ============ */
 function FieldNumber({
-  label, value, onChange, min, step, suffix, hint
+  label, value, onChange, min, max, step, suffix, hint
 }: {
   label: string; value: number; onChange: (v:number)=>void;
-  min?: number; step?: number; suffix?: string; hint?: string;
+  min?: number; max?: number; step?: number; suffix?: string; hint?: string;
 }) {
   return (
     <div>
@@ -446,6 +580,7 @@ function FieldNumber({
           type="number"
           value={value}
           min={min}
+          max={max}
           step={step}
           onChange={e=>onChange(Number(e.target.value||0))}
           style={{ width: '100%', border: '1px solid #E2E8F5', borderRadius: 12, padding: '10px 12px' }}
@@ -467,11 +602,23 @@ function KPI({ t, v }: { t:string; v:string }) {
   );
 }
 
-function Box({ t, v }: { t:string; v:string }) {
+function MiniKPI({ t, v }: { t:string; v:string }) {
   return (
-    <div>
-      <div style={{ fontSize: '.8rem', opacity: .95, fontWeight: 800 }}>{t}</div>
-      <div style={{ fontWeight: 900, fontSize: '1.2rem' }}>{v}</div>
+    <div style={{ background:'#fff', border:'1px solid #EDF2FF', borderRadius:12, padding:'8px 10px' }}>
+      <div style={{ fontSize:12, color:'#64748B', fontWeight:800 }}>{t}</div>
+      <div style={{ fontWeight:900 }}>{v}</div>
+    </div>
+  );
+}
+
+function GoalCard({ title, hint, children }: { title:string; hint?:string; children:React.ReactNode }) {
+  return (
+    <div style={{ marginTop:12, border:'1px solid #E7ECF7', borderRadius:14, padding:14 }}>
+      <div style={{ fontWeight:900 }}>{title}</div>
+      {hint && <div style={{ fontSize:12, color:'#667085', marginBottom:8 }}>{hint}</div>}
+      <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))' }}>
+        {children}
+      </div>
     </div>
   );
 }
