@@ -200,8 +200,11 @@ function Calculator(){
   ============================================================ */
   const container = { maxWidth: 1120, margin:'0 auto', padding:'24px 20px 32px', fontFamily:'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial', boxSizing:'border-box' } as const;
 
+  // 👉 Hero now supports /hero.jpg overlayed by brand gradient
   const hero = {
-    background: `linear-gradient(135deg, #4B6FFF 0%, ${BLUE} 60%)`,
+    backgroundImage: `linear-gradient(135deg, rgba(75,111,255,0.92) 0%, rgba(51,102,254,0.96) 60%), url('/hero.jpg')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
     color:'#fff', borderRadius:18, boxShadow:'0 18px 40px rgba(15,42,120,.25)',
     padding:18, maxWidth:980, margin:'0 auto 16px', border:'1px solid rgba(255,255,255,.24)'
   } as const;
@@ -341,9 +344,13 @@ function Calculator(){
                 onChange={e=>setMaturity(Number(e.target.value))}
                 style={{ width:'100%' }}
               />
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#667085', marginTop:4 }}>
-                <span>1</span><span>5</span><span>10</span>
+              {/* evenly spaced 1..10 under the slider */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(10,1fr)', marginTop:6 }}>
+                {Array.from({length:10}).map((_,i)=>(
+                  <div key={i} style={{ textAlign:'center', fontSize:12, color:'#667085' }}>{i+1}</div>
+                ))}
               </div>
+
               <div style={{ marginTop:8, padding:'10px 12px', border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF' }}>
                 <strong style={{ display:'block' }}>
                   {maturity}. {maturityLabel(maturity)}
@@ -423,7 +430,7 @@ function Calculator(){
         </section>
       )}
 
-      {/* AUTO-GENERATED GOAL STEPS (unchanged content, “Throughput” label already simplified) */}
+      {/* AUTO-GENERATED GOAL STEPS */}
       {steps[step]?.key?.startsWith('goal-') && (
         <GoalStep
           keyStr={steps[step].key}
@@ -460,7 +467,7 @@ function Calculator(){
         />
       )}
 
-      {/* RESULTS (new “Priorities” sectioned layout) */}
+      {/* RESULTS (with headers & spaced columns) */}
       {steps[step]?.key==='results' && (
         <section style={card}>
           <h3 style={h3}>Results</h3>
@@ -473,8 +480,8 @@ function Calculator(){
             <KPI label="Total hours saved (est.)" value={totalHours.toLocaleString()} />
           </div>
 
-          {/* PRIORITIES SECTIONS */}
-          <PrioritiesBreakdown
+          {/* PRIORITIES TABLE */}
+          <PrioritiesTable
             currency={currency}
             rows={buildBreakdownRows({
               currency, hourly, employees,
@@ -531,7 +538,8 @@ function KPI({ label, value }:{label:string; value:string}){
   );
 }
 
-function PrioritiesBreakdown({
+/** New: table-like layout with headers */
+function PrioritiesTable({
   currency,
   rows
 }: {
@@ -545,33 +553,43 @@ function PrioritiesBreakdown({
   }[];
 }){
   const total = rows.reduce((s,r)=>s+r.value,0);
+  const totalHours = rows.every(r=>r.hours==null) ? null : rows.reduce((s,r)=>s+(r.hours||0),0);
+
+  const th = { fontSize:12, color:'#475569', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' } as const;
+  const row = { display:'grid', gridTemplateColumns:'1.2fr .6fr .6fr', gap:16, alignItems:'baseline' } as const;
 
   return (
     <div style={{ marginTop:8 }}>
-      <div style={{ fontSize:12, color:'#64748B', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' }}>Priorities</div>
+      <div style={{ ...row, padding:'8px 0' }}>
+        <div style={th}>Priority</div>
+        <div style={{ ...th, textAlign:'center' }}>Hours saved</div>
+        <div style={{ ...th, textAlign:'right' }}>Annual value</div>
+      </div>
+      <div style={{ height:1, background:'#CBD5FF', margin:'4px 0 8px' }} />
 
       {rows.map((r, idx)=>(
-        <div key={r.key} style={{ padding:'10px 0' }}>
-          {idx>0 && <div style={{ height:1, background:'#D9E1FF', margin:'6px 0 10px' }} />}
-          <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+        <div key={r.key} style={{ margin:'8px 0 14px' }}>
+          <div style={row}>
             <div style={{ fontWeight:900 }}>{r.title}</div>
-            <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'baseline', fontVariantNumeric:'tabular-nums' }}>
-              <span style={{ color:'#475569' }}>{r.hours!=null ? `${r.hours.toLocaleString()} h` : '—'}</span>
-              <strong>{fmtMoney(r.value, currency)}</strong>
+            <div style={{ textAlign:'center', fontVariantNumeric:'tabular-nums' }}>
+              {r.hours!=null ? `${r.hours.toLocaleString()} h` : '—'}
+            </div>
+            <div style={{ textAlign:'right', fontWeight:900 }}>
+              {fmtMoney(r.value, currency)}
             </div>
           </div>
-          {r.note && <div style={{ marginTop:6, color:'#475569' }}>{r.note}</div>}
+          {r.note && <div style={{ margin:'4px 0 0', color:'#475569' }}>{r.note}</div>}
+          <div style={{ height:1, background:'#E0E7FF', margin:'10px 0 0' }} />
         </div>
       ))}
 
-      <div style={{ height:1, background:'#CBD5FF', margin:'8px 0' }} />
-      <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+      <div style={{ ...row, marginTop:10 }}>
         <div style={{ fontWeight:900 }}>Total</div>
-        <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'baseline', fontVariantNumeric:'tabular-nums' }}>
-          <span style={{ color:'#475569' }}>
-            {rows.every(r=>r.hours==null) ? '—' : `${rows.reduce((s,r)=>s+(r.hours||0),0).toLocaleString()} h`}
-          </span>
-          <strong>{fmtMoney(total, currency)}</strong>
+        <div style={{ textAlign:'center', fontWeight:900 }}>
+          {totalHours==null ? '—' : `${totalHours.toLocaleString()} h`}
+        </div>
+        <div style={{ textAlign:'right', fontWeight:900 }}>
+          {fmtMoney(total, currency)}
         </div>
       </div>
     </div>
