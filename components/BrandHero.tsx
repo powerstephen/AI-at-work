@@ -1,31 +1,38 @@
-// components/BrandHero.tsx
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-/**
- * This hero tries /hero.png first (from Vercel public/).
- * If that fails (404 or path mismatch), it falls back to the raw GitHub file.
- */
 export default function BrandHero() {
-  const [src, setSrc] = useState<string>("/hero.png");
-  const fallback = "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png";
+  const [heroSrc, setHeroSrc] = useState("/hero.png");
+
+  useEffect(() => {
+    // Try fetching the local hero
+    fetch("/hero.png", { method: "HEAD" })
+      .then((res) => {
+        if (!res.ok) {
+          // fallback to GitHub if not found
+          setHeroSrc(
+            "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png"
+          );
+        }
+      })
+      .catch(() => {
+        setHeroSrc(
+          "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png"
+        );
+      });
+  }, []);
 
   return (
     <section className="relative max-w-6xl mx-auto my-8 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-      {/* Background layer: image or fallback gradient */}
-      {/* Use a plain <img> so we don't need domain config */}
+      {/* Background Image */}
       <img
-        src={src}
-        alt="Hero"
+        src={heroSrc}
+        alt="Hero Background"
         className="absolute inset-0 w-full h-full object-cover"
-        onError={() => {
-          // If /hero.png fails, try the raw GitHub URL once
-          if (src !== fallback) setSrc(fallback);
-        }}
       />
 
-      {/* Overlay gradient for readability */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1635]/80 via-[#1e2a5e]/60 to-[#000000]/30" />
+      {/* Overlay gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1635]/70 via-[#1e2a5e]/50 to-[#3366fe]/40" />
 
       {/* Content */}
       <div className="relative z-10 p-6 sm:p-8 lg:p-10 text-white">
