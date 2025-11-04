@@ -21,7 +21,7 @@ const TEAMS: {label:string; value:Team}[] = [
 ];
 
 const GOAL_META: Record<Goal, {label:string; hint:string}> = {
-  throughput: { label: 'Throughput / Cycle time', hint: 'Ship more, remove blockers' },
+  throughput: { label: 'Throughput',              hint: 'Ship more, remove blockers' },
   quality:    { label: 'Quality / Rework',        hint: 'Cut rework & error rates'   },
   onboarding: { label: 'Onboarding speed',        hint: 'Faster time-to-productivity'},
   retention:  { label: 'Retention',               hint: 'Avoid regretted churn cost' },
@@ -30,7 +30,8 @@ const GOAL_META: Record<Goal, {label:string; hint:string}> = {
 };
 
 const symbol = (c: Currency) => (c === 'EUR' ? '€' : c === 'USD' ? '$' : '£');
-const fmtMoney = (n:number, c:Currency) => new Intl.NumberFormat('en', { style:'currency', currency:c, maximumFractionDigits:0 }).format(n);
+const fmtMoney = (n:number, c:Currency) =>
+  new Intl.NumberFormat('en', { style:'currency', currency:c, maximumFractionDigits:0 }).format(n);
 const clamp = (n:number, lo:number, hi:number)=>Math.max(lo, Math.min(hi, n));
 const hourlyFromSalary = (s:number) => s / (52 * 40);
 
@@ -72,7 +73,8 @@ export default function Page(){
 ============================================================ */
 function Calculator(){
   /* ------ Global/basic state ------ */
-  const [step, setStep] = useState<number>(0);               // 0: Basics, 1: PickTop3, 2..4: Goal steps, last: Results
+  const [step, setStep] = useState<number>(0); // 0 Team, 1 Maturity, 2 Priorities, then goal steps..., last Results
+
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [team, setTeam] = useState<Team>('all');
   const [employees, setEmployees] = useState<number>(150);
@@ -84,7 +86,15 @@ function Calculator(){
   const hourly = useMemo(()=>hourlyFromSalary(avgSalary), [avgSalary]);
   const programCost = trainingPerEmployee * employees * (durationMonths/12);
 
-  /* ------ Choose Top-3 priorities ------ */
+  /* ------ AI Maturity ------ */
+  const [maturity, setMaturity] = useState<number>(3); // 1..10
+  const [useMaturityEstimate, setUseMaturityEstimate] = useState<boolean>(true);
+  // Map maturity → suggested hours saved / person / week (1→5h, 10→1h)
+  const maturityHoursMap = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1.2, 1];
+  const maturityHoursPerPerson = maturityHoursMap[clamp(maturity,1,10)-1] ?? 3;
+  const maturityHoursTeam = Math.round(maturityHoursPerPerson * 52 * employees);
+
+  /* ------ Choose Top-3 priorities (tick boxes) ------ */
   const [selected, setSelected] = useState<Goal[]>(['throughput','retention','upskilling']); // defaults
   const toggleGoal = (g:Goal)=>{
     setSelected(prev=>{
@@ -94,24 +104,8 @@ function Calculator(){
       return [...prev, g];
     });
   };
-  const moveUp = (i:number)=>{
-    setSelected(prev=>{
-      if (i<=0) return prev;
-      const copy = [...prev];
-      [copy[i-1], copy[i]] = [copy[i], copy[i-1]];
-      return copy;
-    });
-  };
-  const moveDown = (i:number)=>{
-    setSelected(prev=>{
-      if (i>=prev.length-1) return prev;
-      const copy = [...prev];
-      [copy[i+1], copy[i]] = [copy[i], copy[i+1]];
-      return copy;
-    });
-  };
 
-  /* ------ Goal-specific tiny input slices ------ */
+  /* ------ Goal-specific inputs ------ */
   // Throughput
   const [tpHoursPerWeek, setTpHoursPerWeek] = useState<number>(3.0);
   const [tpUtilPct, setTpUtilPct] = useState<number>(70);
@@ -137,13 +131,16 @@ function Calculator(){
   const [csAvgToolCostPerMonth, setCsAvgToolCostPerMonth] = useState<number>(200);
 
   // Upskilling
-  const [upCoveragePct, setUpCoveragePct] = useState<number>(60); // % of in-scope staff who become competent
+  const [upCoveragePct, setUpCoveragePct] = useState<number>(60);
   const [upHoursPerWeek, setUpHoursPerWeek] = useState<number>(2.0);
   const [upUtilPct, setUpUtilPct] = useState<number>(70);
 
-  /* ------ Formulas ------ */
+  /* ------ Formulas (maturity can drive hours) ------ */
+  const hoursPerWeekThroughput = useMaturityEstimate ? maturityHoursPerPerson : tpHoursPerWeek;
+  const hoursPerWeekUpskilling = useMaturityEstimate ? maturityHoursPerPerson : upHoursPerWeek;
+
   const valThroughput = selected.includes('throughput')
-    ? tpHoursPerWeek * 52 * employees * hourly * clamp(tpUtilPct/100,0,1)
+    ? hoursPerWeekThroughput * 52 * employees * hourly * clamp(tpUtilPct/100,0,1)
     : 0;
 
   const valQuality = selected.includes('quality')
@@ -164,7 +161,7 @@ function Calculator(){
 
   // Upskilling base (before overlap guard)
   const upBase = selected.includes('upskilling')
-    ? (upCoveragePct/100) * employees * upHoursPerWeek * 52 * hourly * clamp(upUtilPct/100,0,1)
+    ? (upCoveragePct/100) * employees * hoursPerWeekUpskilling * 52 * hourly * clamp(upUtilPct/100,0,1)
     : 0;
   // Overlap guard with Throughput
   const valUpskilling = (selected.includes('throughput') && selected.includes('upskilling'))
@@ -176,21 +173,22 @@ function Calculator(){
   const roiMultiple = programCost>0 ? (annualValue/programCost) : 0;
   const paybackMonths = monthlySavings>0 ? (programCost / monthlySavings) : Infinity;
 
-  // hours by goal for results table
-  const hoursThroughput = selected.includes('throughput') ? tpHoursPerWeek*52*employees : 0;
+  // hours for results
+  const hoursThroughput = selected.includes('throughput') ? hoursPerWeekThroughput*52*employees : 0;
   const hoursQuality = selected.includes('quality') ? qlEventsPerPersonPerMonth*employees*12*(qlReductionPct/100)*qlHoursPerFix : 0;
   const hoursUpskilling = selected.includes('upskilling')
-    ? Math.round(((upCoveragePct/100)*employees*upHoursPerWeek*52) * (selected.includes('throughput') ? 0.7 : 1))
+    ? Math.round(((upCoveragePct/100)*employees*hoursPerWeekUpskilling*52) * (selected.includes('throughput') ? 0.7 : 1))
     : 0;
   const totalHours = Math.round(hoursThroughput + hoursQuality + hoursUpskilling);
 
   /* ------ Steps ------ */
   const steps = useMemo(()=>{
     const arr: {key:string; title:string}[] = [];
-    arr.push({ key:'basics', title:'Basics' });
-    arr.push({ key:'pick',   title:'Pick top 3' });
+    arr.push({ key:'team',      title:'Team' });
+    arr.push({ key:'maturity',  title:'AI Maturity' });
+    arr.push({ key:'priorities',title:'Priorities' });
     selected.forEach(g => arr.push({ key:`goal-${g}`, title: GOAL_META[g].label }));
-    arr.push({ key:'results', title:'Results' });
+    arr.push({ key:'results',   title:'Results' });
     return arr;
   }, [selected]);
 
@@ -208,16 +206,13 @@ function Calculator(){
     padding:18, maxWidth:980, margin:'0 auto 16px', border:'1px solid rgba(255,255,255,.24)'
   } as const;
 
-  // ⬇️ Reverted to compact hero stats
   const heroGrid = { display:'grid', gap:8, gridTemplateColumns:'repeat(4, minmax(120px, 1fr))' } as const;
   const heroStat = { border:'1px solid rgba(255,255,255,.35)', borderRadius:12, padding:'8px 10px', background:'rgba(255,255,255,.10)', fontWeight:800, minHeight:46, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 } as const;
 
   const card = { background:'#fff', border:'1px solid #E7ECF7', borderRadius:16, boxShadow:'0 10px 28px rgba(12,20,38,.08)', padding:18, maxWidth:980, margin:'16px auto' } as const;
   const h3 = { margin:'0 0 .7rem', fontSize:'1.06rem', fontWeight:900, color:'#0F172A' } as const;
 
-  // ⬇️ Robust grids to prevent overlap (min width 300px, consistent row heights)
   const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', alignItems:'start' } as const;
-
   const centerRow = { maxWidth:980, margin:'16px auto 0', display:'flex', gap:8, justifyContent:'space-between', flexWrap:'wrap' } as const;
 
   const input = { width:'100%', border:'1px solid #E2E8F5', borderRadius:12, padding:'10px 12px', display:'block', boxSizing:'border-box', minHeight:42 } as const;
@@ -236,6 +231,10 @@ function Calculator(){
   const kpiTopBar = { position:'absolute', left:0, top:0, right:0, height:4, borderRadius:'14px 14px 0 0', background:`linear-gradient(90deg,#6D8BFF,${BLUE})` } as const;
   const kpiLabel = { fontSize:'.76rem', color:'#64748B', fontWeight:800, marginTop:2 } as const;
   const kpiValue = { fontWeight:900, fontSize:'1.16rem' } as const;
+
+  // Stepper labels evenly spread
+  const stepperWrap = { display:'flex', alignItems:'center', gap:10, marginTop:10, flexWrap:'wrap' } as const;
+  const stepperLabels = { display:'flex', justifyContent:'space-between', width:'100%', gap:8, flexWrap:'nowrap' } as const;
 
   const stepPct = steps.length>1 ? (step/(steps.length-1)) : 0;
 
@@ -263,28 +262,30 @@ function Calculator(){
         <div style={{ height:10, background:'#E9EDFB', borderRadius:999, overflow:'hidden' }}>
           <span style={{ display:'block', height:'100%', width:`${stepPct*100}%`, background:`linear-gradient(90deg,#6D8BFF,${BLUE})` }} />
         </div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginTop:10 }}>
-          {steps.map((s, i)=>(
-            <div key={s.key} style={{ display:'flex', alignItems:'center', gap:8, color: i<=step ? '#0F172A' : '#8892A6' }}>
-              <div style={{
-                width:28, height:28, borderRadius:999,
-                border: i<=step ? 'none' : '2px solid #CFD8FF',
-                background: i<=step ? BLUE : '#fff',
-                color: i<=step ? '#fff' : '#0E1320',
-                display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:13
-              }}>{i+1}</div>
-              <span style={{ fontWeight:800, fontSize:13 }}>{s.title}</span>
-            </div>
-          ))}
+        <div style={stepperWrap}>
+          <div style={stepperLabels}>
+            {steps.map((s, i)=>(
+              <div key={s.key} style={{ display:'flex', alignItems:'center', gap:6, minWidth:0, opacity:i<=step?1:.55 }}>
+                <div style={{
+                  width:26, height:26, borderRadius:999,
+                  border: i<=step ? 'none' : '2px solid #CFD8FF',
+                  background: i<=step ? BLUE : '#fff',
+                  color: i<=step ? '#fff' : '#0E1320',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:12, flex:'0 0 auto'
+                }}>{i+1}</div>
+                <span style={{ fontWeight:800, fontSize:12, whiteSpace:'nowrap' }}>{s.title}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* STEP 0: BASICS */}
-      {steps[step]?.key==='basics' && (
+      {/* STEP 0: TEAM */}
+      {steps[step]?.key==='team' && (
         <section style={card}>
-          <h3 style={h3}>Basics</h3>
+          <h3 style={h3}>Team</h3>
           <div style={gridAuto}>
-            <div style={{ minHeight:82 }}>
+            <div>
               <label style={label}>Department</label>
               <select value={team} onChange={e=>setTeam(e.target.value as Team)} style={input}>
                 {TEAMS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
@@ -292,12 +293,12 @@ function Calculator(){
               <p style={help}>Choose a function or “Company-wide”.</p>
             </div>
 
-            <div style={{ minHeight:82 }}>
+            <div>
               <label style={label}>Employees in scope</label>
               <input type="number" min={1} value={employees} onChange={e=>setEmployees(Number(e.target.value||0))} style={input}/>
             </div>
 
-            <div style={{ minHeight:82 }}>
+            <div>
               <label style={label}>Currency</label>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 {(['EUR','USD','GBP'] as Currency[]).map(c=>{
@@ -313,9 +314,9 @@ function Calculator(){
           <div style={{ marginTop:14 }}>
             <h4 style={{ margin:'0 0 8px', fontSize:'.95rem', fontWeight:900 }}>Program cost assumptions</h4>
             <div style={gridAuto}>
-              <div style={{ minHeight:82 }}><FieldNumber label={`Average annual salary (${symbol(currency)})`} value={avgSalary} onChange={setAvgSalary} step={1000}/></div>
-              <div style={{ minHeight:82 }}><FieldNumber label={`Training per employee (${symbol(currency)})`} value={trainingPerEmployee} onChange={setTrainingPerEmployee} step={25}/></div>
-              <div style={{ minHeight:82 }}><FieldNumber label="Program duration (months)" value={durationMonths} onChange={setDurationMonths} min={1} step={1}/></div>
+              <FieldNumber label={`Average annual salary (${symbol(currency)})`} value={avgSalary} onChange={setAvgSalary} step={1000}/>
+              <FieldNumber label={`Training per employee (${symbol(currency)})`} value={trainingPerEmployee} onChange={setTrainingPerEmployee} step={25}/>
+              <FieldNumber label="Program duration (months)" value={durationMonths} onChange={setDurationMonths} min={1} step={1}/>
             </div>
           </div>
 
@@ -326,30 +327,93 @@ function Calculator(){
         </section>
       )}
 
-      {/* STEP 1: PICK TOP 3 */}
-      {steps[step]?.key==='pick' && (
+      {/* STEP 1: AI MATURITY */}
+      {steps[step]?.key==='maturity' && (
         <section style={card}>
-          <h3 style={h3}>Pick your top 3 priorities</h3>
-          <p style={help}>Choose up to three. Reorder them — we’ll build the next steps in that order.</p>
+          <h3 style={h3}>AI Maturity</h3>
+          <p style={help}>Slide to rate current adoption. Use it to estimate baseline hours saved.</p>
 
-          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))' }}>
+          <div style={{ display:'grid', gap:16, gridTemplateColumns:'1.3fr .7fr', alignItems:'start' }}>
+            <div>
+              <label style={{ fontWeight:800, display:'block', marginBottom:6 }}>Current level (1–10)</label>
+              <input
+                type="range" min={1} max={10} value={maturity}
+                onChange={e=>setMaturity(Number(e.target.value))}
+                style={{ width:'100%' }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#667085', marginTop:4 }}>
+                <span>1</span><span>5</span><span>10</span>
+              </div>
+              <div style={{ marginTop:8, padding:'10px 12px', border:'1px solid #E7ECF7', borderRadius:12, background:'#F8FAFF' }}>
+                <strong style={{ display:'block' }}>
+                  {maturity}. {maturityLabel(maturity)}
+                </strong>
+                <small style={{ color:'#475569' }}>
+                  Guidance: at this level we often see ~{maturityHoursPerPerson.toFixed(1)}h saved per person/week once trained.
+                </small>
+              </div>
+
+              <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:10, cursor:'pointer' }}>
+                <input type="checkbox" checked={useMaturityEstimate} onChange={e=>setUseMaturityEstimate(e.target.checked)} />
+                <span style={{ fontWeight:800 }}>Use maturity-based hours in calculations</span>
+              </label>
+            </div>
+
+            <div style={{ border:'1px solid #E7ECF7', borderRadius:14, padding:14 }}>
+              <div style={{ fontSize:12, color:'#64748B', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' }}>Estimated Hours Saved</div>
+              <div style={{ marginTop:8, display:'grid', gap:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  <span style={{ fontWeight:900 }}>Per person / week</span>
+                  <span style={{ fontWeight:900 }}>{maturityHoursPerPerson.toFixed(1)}h</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  <span style={{ fontWeight:900 }}>Team / year</span>
+                  <span style={{ fontWeight:900 }}>{maturityHoursTeam.toLocaleString()}h</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={centerRow}>
+            <button style={btn} onClick={gotoPrev}>← Back</button>
+            <button style={btnPrimary} onClick={gotoNext}>Continue →</button>
+          </div>
+        </section>
+      )}
+
+      {/* STEP 2: PRIORITIES (tick boxes) */}
+      {steps[step]?.key==='priorities' && (
+        <section style={card}>
+          <h3 style={h3}>Priorities</h3>
+          <p style={help}>Select up to three priorities to focus your business case.</p>
+
+          <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))' }}>
             {(Object.keys(GOAL_META) as Goal[]).map(g=>{
               const on = selected.includes(g);
               return (
-                <div key={g} style={{ border:'1px solid #E7ECF7', borderRadius:14, padding:12, background:on?'rgba(51,102,254,.06)':'#fff', minHeight:88 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                    <button type="button" style={chip(on)} onClick={()=>toggleGoal(g)}>{GOAL_META[g].label}</button>
-                    {on && (
-                      <div style={{ display:'inline-flex', gap:6 }}>
-                        <IconBtn title="Up" onClick={()=>moveUp(selected.indexOf(g))}>↑</IconBtn>
-                        <IconBtn title="Down" onClick={()=>moveDown(selected.indexOf(g))}>↓</IconBtn>
-                      </div>
-                    )}
+                <label key={g} style={{
+                  border:'1px solid #E7ECF7', borderRadius:14, padding:12, background:on?'rgba(51,102,254,.06)':'#fff',
+                  display:'grid', gap:8, gridTemplateColumns:'auto 1fr', alignItems:'start'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={()=>toggleGoal(g)}
+                    style={{ transform:'scale(1.2)', marginTop:2 }}
+                  />
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                      <span style={{ fontWeight:900 }}>{GOAL_META[g].label}</span>
+                    </div>
+                    <div style={{ marginTop:4, fontSize:'.86rem', color:'#667085' }}>{GOAL_META[g].hint}</div>
                   </div>
-                  <div style={{ marginTop:8, fontSize:'.86rem', color:'#667085' }}>{GOAL_META[g].hint}</div>
-                </div>
+                </label>
               );
             })}
+          </div>
+
+          <div style={{ marginTop:8, color:'#64748B', fontSize:12 }}>
+            Selected: <strong>{selected.length}</strong> / 3
           </div>
 
           <div style={centerRow}>
@@ -359,7 +423,7 @@ function Calculator(){
         </section>
       )}
 
-      {/* AUTO-GENERATED GOAL STEPS */}
+      {/* AUTO-GENERATED GOAL STEPS (unchanged content, “Throughput” label already simplified) */}
       {steps[step]?.key?.startsWith('goal-') && (
         <GoalStep
           keyStr={steps[step].key}
@@ -396,21 +460,21 @@ function Calculator(){
         />
       )}
 
-      {/* RESULTS */}
+      {/* RESULTS (new “Priorities” sectioned layout) */}
       {steps[step]?.key==='results' && (
         <section style={card}>
           <h3 style={h3}>Results</h3>
 
           {/* KPI ROW */}
           <div style={{ display:'grid', gap:12, gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', marginBottom:10 }}>
-            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Total annual value</div><div style={kpiValue}>{fmtMoney(annualValue, currency)}</div></div>
-            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Annual ROI</div><div style={kpiValue}>{(roiMultiple||0).toFixed(1)}×</div></div>
-            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Payback</div><div style={kpiValue}>{Number.isFinite(paybackMonths)?`${paybackMonths.toFixed(1)} mo`:'—'}</div></div>
-            <div style={kpiCard}><div style={kpiTopBar}/><div style={kpiLabel}>Total hours saved (est.)</div><div style={kpiValue}>{totalHours.toLocaleString()}</div></div>
+            <KPI label="Total annual value" value={fmtMoney(annualValue, currency)} />
+            <KPI label="Annual ROI" value={`${(roiMultiple||0).toFixed(1)}×`} />
+            <KPI label="Payback" value={Number.isFinite(paybackMonths)?`${paybackMonths.toFixed(1)} mo`:'—'} />
+            <KPI label="Total hours saved (est.)" value={totalHours.toLocaleString()} />
           </div>
 
-          {/* BREAKDOWN TABLE — more room for Hours & Notes */}
-          <BreakdownTable
+          {/* PRIORITIES SECTIONS */}
+          <PrioritiesBreakdown
             currency={currency}
             rows={buildBreakdownRows({
               currency, hourly, employees,
@@ -419,7 +483,7 @@ function Calculator(){
               // hours
               hoursThroughput, hoursQuality, hoursUpskilling,
               // flags
-              selected, avgSalary, obHiresPerYear, obBaselineRamp, obImprovedRamp, rtBaselineTurnoverPct, rtReductionPct, rtReplacementCostPct, csConsolidationPerMonth, csEliminatedTools, csAvgToolCostPerMonth, upCoveragePct, upHoursPerWeek
+              selected, avgSalary, obHiresPerYear, obBaselineRamp, obImprovedRamp, rtBaselineTurnoverPct, rtReductionPct, rtReplacementCostPct, csConsolidationPerMonth, csEliminatedTools, csAvgToolCostPerMonth, upCoveragePct, upHoursPerWeek: hoursPerWeekUpskilling
             })}
           />
 
@@ -451,9 +515,23 @@ function Calculator(){
 }
 
 /* ============================================================
-   Breakdown table (wider Hours/Notes, less cramped right side)
+   Small components
 ============================================================ */
-function BreakdownTable({
+function KPI({ label, value }:{label:string; value:string}){
+  const kpiCard = { background:'#fff', border:'1px solid #E8EEFF', borderRadius:14, padding:14, position:'relative', minHeight:84 } as const;
+  const kpiTopBar = { position:'absolute', left:0, top:0, right:0, height:4, borderRadius:'14px 14px 0 0', background:`linear-gradient(90deg,#6D8BFF,${BLUE})` } as const;
+  const kpiLabel = { fontSize:'.76rem', color:'#64748B', fontWeight:800, marginTop:2 } as const;
+  const kpiValue = { fontWeight:900, fontSize:'1.16rem' } as const;
+  return (
+    <div style={kpiCard}>
+      <div style={kpiTopBar}/>
+      <div style={kpiLabel}>{label}</div>
+      <div style={kpiValue}>{value}</div>
+    </div>
+  );
+}
+
+function PrioritiesBreakdown({
   currency,
   rows
 }: {
@@ -466,37 +544,35 @@ function BreakdownTable({
     note?: string;
   }[];
 }){
-  const th = { fontSize:12, color:'#64748B', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' } as const;
-  const td = { padding:'8px 0', borderBottom:'1px solid #EEF2FF' } as const;
-
-  // ⬇️ Make Hours & Notes less cramped to the right
-  const colGrid = { display:'grid', gridTemplateColumns:'1.1fr .7fr .8fr 1.4fr', gap:10, alignItems:'center' } as const;
-
   const total = rows.reduce((s,r)=>s+r.value,0);
 
   return (
     <div style={{ marginTop:8 }}>
-      <div style={{ ...colGrid, padding:'8px 0' }}>
-        <div style={th}>Area</div>
-        <div style={{ ...th, textAlign:'left' }}>Hours</div>
-        <div style={{ ...th, textAlign:'right' }}>Value</div>
-        <div style={th}>Notes</div>
-      </div>
-      {rows.map(r=>(
-        <div key={r.key} style={colGrid}>
-          <div style={td}><strong>{r.title}</strong></div>
-          <div style={{ ...td, textAlign:'left', fontVariantNumeric:'tabular-nums' }}>{r.hours!=null ? r.hours.toLocaleString() : '—'}</div>
-          <div style={{ ...td, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>{fmtMoney(r.value, currency)}</div>
-          <div style={{ ...td, color:'#475569' }}>{r.note||''}</div>
+      <div style={{ fontSize:12, color:'#64748B', fontWeight:900, textTransform:'uppercase', letterSpacing:'.02em' }}>Priorities</div>
+
+      {rows.map((r, idx)=>(
+        <div key={r.key} style={{ padding:'10px 0' }}>
+          {idx>0 && <div style={{ height:1, background:'#D9E1FF', margin:'6px 0 10px' }} />}
+          <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+            <div style={{ fontWeight:900 }}>{r.title}</div>
+            <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'baseline', fontVariantNumeric:'tabular-nums' }}>
+              <span style={{ color:'#475569' }}>{r.hours!=null ? `${r.hours.toLocaleString()} h` : '—'}</span>
+              <strong>{fmtMoney(r.value, currency)}</strong>
+            </div>
+          </div>
+          {r.note && <div style={{ marginTop:6, color:'#475569' }}>{r.note}</div>}
         </div>
       ))}
-      <div style={{ ...colGrid, padding:'10px 0', borderTop:'2px solid #CBD5FF' }}>
+
+      <div style={{ height:1, background:'#CBD5FF', margin:'8px 0' }} />
+      <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
         <div style={{ fontWeight:900 }}>Total</div>
-        <div style={{ textAlign:'left', fontWeight:900, fontVariantNumeric:'tabular-nums' }}>
-          {rows.every(r=>r.hours==null) ? '—' : rows.reduce((s,r)=>s + (r.hours||0),0).toLocaleString()}
+        <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'baseline', fontVariantNumeric:'tabular-nums' }}>
+          <span style={{ color:'#475569' }}>
+            {rows.every(r=>r.hours==null) ? '—' : `${rows.reduce((s,r)=>s+(r.hours||0),0).toLocaleString()} h`}
+          </span>
+          <strong>{fmtMoney(total, currency)}</strong>
         </div>
-        <div style={{ textAlign:'right', fontWeight:900, fontVariantNumeric:'tabular-nums' }}>{fmtMoney(total, currency)}</div>
-        <div />
       </div>
     </div>
   );
@@ -542,10 +618,10 @@ function buildBreakdownRows(args: {
   if (s.includes('throughput')) {
     rows.push({
       key:'throughput',
-      title:'Throughput / Cycle time',
+      title:'Throughput',
       hours: Math.round(args.hoursThroughput),
       value: args.valThroughput,
-      note: `~${args.hoursThroughput.toLocaleString()} hrs saved/year across team via faster cycles`
+      note: `~${args.hoursThroughput.toLocaleString()} hrs saved/year via faster cycles`
     });
   }
   if (s.includes('quality')) {
@@ -554,7 +630,7 @@ function buildBreakdownRows(args: {
       title:'Quality / Rework',
       hours: Math.round(args.hoursQuality),
       value: args.valQuality,
-      note: `Fewer rework loops → reclaimed time`
+      note: `Fewer rework loops & better first-pass quality`
     });
   }
   if (s.includes('onboarding')) {
@@ -564,7 +640,7 @@ function buildBreakdownRows(args: {
       title:'Onboarding speed',
       hours: null,
       value: args.valOnboarding,
-      note: `${args.obHiresPerYear} hires/yr, ${args.obBaselineRamp}→${args.obImprovedRamp} mo ramp`
+      note: `${args.obHiresPerYear} hires/yr, ${args.obBaselineRamp}→${args.obImprovedRamp} mo ramp (save ~${monthsSaved.toFixed(1)} mo/hire)`
     });
   }
   if (s.includes('retention')) {
@@ -579,7 +655,7 @@ function buildBreakdownRows(args: {
   if (s.includes('cost')) {
     rows.push({
       key:'cost',
-      title:'Cost (tooling)',
+      title:'Cost',
       hours: null,
       value: args.valCost,
       note: `${args.csEliminatedTools} tools removed; +${symbol(args.currency)}${args.csConsolidationPerMonth}/mo consolidation`
@@ -621,18 +697,8 @@ function FieldNumber({
   );
 }
 
-function IconBtn({ title, onClick, children }:{ title:string; onClick:()=>void; children:React.ReactNode }){
-  return (
-    <button type="button" title={title}
-      onClick={onClick}
-      style={{ padding:'6px 8px', borderRadius:10, border:'1px solid #E7ECF7', background:'#fff', cursor:'pointer', fontWeight:800 }}>
-      {children}
-    </button>
-  );
-}
-
 /* ============================================================
-   Goal step renderer (grids hardened to prevent overlap)
+   Goal step renderer
 ============================================================ */
 function GoalStep(props: {
   keyStr:string; goal:Goal; currency:Currency; employees:number; hourly:number;
@@ -661,7 +727,7 @@ function GoalStep(props: {
   upUtilPct:number; setUpUtilPct:(n:number)=>void;
   onBack:()=>void; onNext:()=>void;
 }){
-  const { goal, currency, employees, hourly, onBack, onNext } = props;
+  const { goal, currency, onBack, onNext } = props;
   const card = { background:'#fff', border:'1px solid #E7ECF7', borderRadius:16, boxShadow:'0 10px 28px rgba(12,20,38,.08)', padding:18, maxWidth:980, margin:'16px auto' } as const;
   const h3 = { margin:'0 0 .7rem', fontSize:'1.06rem', fontWeight:900, color:'#0F172A' } as const;
   const gridAuto = { display:'grid', gap:14, gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', alignItems:'start' } as const;
@@ -670,14 +736,14 @@ function GoalStep(props: {
   const btnPrimary = { ...btn, background:`linear-gradient(90deg,#5A7BFF,${BLUE})`, color:'#fff', borderColor:'transparent', boxShadow:'0 8px 20px rgba(31,77,255,.25)' } as const;
 
   if (goal==='throughput') {
-    const value = props.tpHoursPerWeek * 52 * employees * hourly * clamp(props.tpUtilPct/100,0,1);
+    const value = props.tpHoursPerWeek * 52 * props.employees * props.hourly * clamp(props.tpUtilPct/100,0,1);
     return (
       <section style={card}>
-        <h3 style={h3}>Throughput / Cycle time</h3>
+        <h3 style={h3}>Throughput</h3>
         <p style={help}>Estimate cycle-time gains from AI-augmented workflows.</p>
         <div style={gridAuto}>
-          <div style={{ minHeight:82 }}><FieldNumber label="Hours saved per person / week" value={props.tpHoursPerWeek} onChange={props.setTpHoursPerWeek} step={0.5}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Utilization factor (%)" value={props.tpUtilPct} onChange={props.setTpUtilPct} min={0} max={100} step={5}/></div>
+          <FieldNumber label="Hours saved per person / week" value={props.tpHoursPerWeek} onChange={props.setTpHoursPerWeek} step={0.5}/>
+          <FieldNumber label="Utilization factor (%)" value={props.tpUtilPct} onChange={props.setTpUtilPct} min={0} max={100} step={5}/>
         </div>
         <p style={{ ...help, marginTop:10 }}>
           ≈ Value / year: <strong>{fmtMoney(value, currency)}</strong>
@@ -691,16 +757,16 @@ function GoalStep(props: {
   }
 
   if (goal==='quality') {
-    const hours = props.qlEventsPerPersonPerMonth * employees * 12 * (props.qlReductionPct/100) * props.qlHoursPerFix;
-    const value = hours * hourly * clamp(props.tpUtilPct/100,0,1);
+    const hours = props.qlEventsPerPersonPerMonth * props.employees * 12 * (props.qlReductionPct/100) * props.qlHoursPerFix;
+    const value = hours * props.hourly * clamp(props.tpUtilPct/100,0,1);
     return (
       <section style={card}>
         <h3 style={h3}>Quality / Rework</h3>
         <p style={help}>Fewer rework cycles; better first-pass quality.</p>
         <div style={gridAuto}>
-          <div style={{ minHeight:82 }}><FieldNumber label="Rework events / person / month" value={props.qlEventsPerPersonPerMonth} onChange={props.setQlEventsPerPersonPerMonth} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Expected reduction (%)" value={props.qlReductionPct} onChange={props.setQlReductionPct} min={0} max={100} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Hours per fix" value={props.qlHoursPerFix} onChange={props.setQlHoursPerFix} step={0.5}/></div>
+          <FieldNumber label="Rework events / person / month" value={props.qlEventsPerPersonPerMonth} onChange={props.setQlEventsPerPersonPerMonth} step={1}/>
+          <FieldNumber label="Expected reduction (%)" value={props.qlReductionPct} onChange={props.setQlReductionPct} min={0} max={100} step={1}/>
+          <FieldNumber label="Hours per fix" value={props.qlHoursPerFix} onChange={props.setQlHoursPerFix} step={0.5}/>
         </div>
         <p style={{ ...help, marginTop:10 }}>
           ≈ Hours avoided / year: <strong>{Math.round(hours).toLocaleString()}</strong> · Value / year: <strong>{fmtMoney(value, currency)}</strong>
@@ -720,9 +786,9 @@ function GoalStep(props: {
         <h3 style={h3}>Onboarding speed</h3>
         <p style={help}>Faster ramp from AI playbooks & guided practice.</p>
         <div style={gridAuto}>
-          <div style={{ minHeight:82 }}><FieldNumber label="New hires / year" value={props.obHiresPerYear} onChange={props.setObHiresPerYear} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Baseline ramp (months)" value={props.obBaselineRamp} onChange={props.setObBaselineRamp} step={0.5}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Improved ramp (months)" value={props.obImprovedRamp} onChange={props.setObImprovedRamp} step={0.5}/></div>
+          <FieldNumber label="New hires / year" value={props.obHiresPerYear} onChange={props.setObHiresPerYear} step={1}/>
+          <FieldNumber label="Baseline ramp (months)" value={props.obBaselineRamp} onChange={props.setObBaselineRamp} step={0.5}/>
+          <FieldNumber label="Improved ramp (months)" value={props.obImprovedRamp} onChange={props.setObImprovedRamp} step={0.5}/>
         </div>
         <p style={{ ...help, marginTop:10 }}>
           ≈ Months saved / hire: <strong>{monthsSaved.toFixed(1)}</strong>
@@ -741,9 +807,9 @@ function GoalStep(props: {
         <h3 style={h3}>Retention</h3>
         <p style={help}>Keep skilled talent; avoid replacement costs.</p>
         <div style={gridAuto}>
-          <div style={{ minHeight:82 }}><FieldNumber label="Baseline annual turnover (%)" value={props.rtBaselineTurnoverPct} onChange={props.setRtBaselineTurnoverPct} min={0} max={100} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Expected reduction (%)" value={props.rtReductionPct} onChange={props.setRtReductionPct} min={0} max={100} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Replacement cost (% of salary)" value={props.rtReplacementCostPct} onChange={props.setRtReplacementCostPct} min={0} max={200} step={5}/></div>
+          <FieldNumber label="Baseline annual turnover (%)" value={props.rtBaselineTurnoverPct} onChange={props.setRtBaselineTurnoverPct} min={0} max={100} step={1}/>
+          <FieldNumber label="Expected reduction (%)" value={props.rtReductionPct} onChange={props.setRtReductionPct} min={0} max={100} step={1}/>
+          <FieldNumber label="Replacement cost (% of salary)" value={props.rtReplacementCostPct} onChange={props.setRtReplacementCostPct} min={0} max={200} step={5}/>
         </div>
         <div style={{ display:'flex', justifyContent:'space-between', marginTop:12 }}>
           <button style={btn} onClick={onBack}>← Back</button>
@@ -759,9 +825,9 @@ function GoalStep(props: {
         <h3 style={h3}>Cost</h3>
         <p style={help}>Do more with fewer overlapping tools.</p>
         <div style={gridAuto}>
-          <div style={{ minHeight:82 }}><FieldNumber label={`Consolidation savings / month (${symbol(currency)})`} value={props.csConsolidationPerMonth} onChange={props.setCsConsolidationPerMonth} step={50}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label="Eliminated tools (count)" value={props.csEliminatedTools} onChange={props.setCsEliminatedTools} step={1}/></div>
-          <div style={{ minHeight:82 }}><FieldNumber label={`Avg tool cost / month (${symbol(currency)})`} value={props.csAvgToolCostPerMonth} onChange={props.setCsAvgToolCostPerMonth} step={20}/></div>
+          <FieldNumber label={`Consolidation savings / month (${symbol(currency)})`} value={props.csConsolidationPerMonth} onChange={props.setCsConsolidationPerMonth} step={50}/>
+          <FieldNumber label="Eliminated tools (count)" value={props.csEliminatedTools} onChange={props.setCsEliminatedTools} step={1}/>
+          <FieldNumber label={`Avg tool cost / month (${symbol(currency)})`} value={props.csAvgToolCostPerMonth} onChange={props.setCsAvgToolCostPerMonth} step={20}/>
         </div>
         <div style={{ display:'flex', justifyContent:'space-between', marginTop:12 }}>
           <button style={btn} onClick={onBack}>← Back</button>
@@ -772,15 +838,15 @@ function GoalStep(props: {
   }
 
   // UPSKILLING
-  const baseHours = (props.upCoveragePct/100) * employees * props.upHoursPerWeek * 52;
+  const baseHours = (props.upCoveragePct/100) * props.employees * props.upHoursPerWeek * 52;
   return (
     <section style={card}>
       <h3 style={h3}>Upskilling</h3>
       <p style={help}>Competency coverage after training drives steady time savings per competent employee.</p>
       <div style={gridAuto}>
-        <div style={{ minHeight:82 }}><FieldNumber label="Competency coverage after program (%)" value={props.upCoveragePct} onChange={props.setUpCoveragePct} min={0} max={100} step={5}/></div>
-        <div style={{ minHeight:82 }}><FieldNumber label="Hours saved per competent person / week" value={props.upHoursPerWeek} onChange={props.setUpHoursPerWeek} step={0.5}/></div>
-        <div style={{ minHeight:82 }}><FieldNumber label="Utilization factor (%)" value={props.upUtilPct} onChange={props.setUpUtilPct} min={0} max={100} step={5}/></div>
+        <FieldNumber label="Competency coverage after program (%)" value={props.upCoveragePct} onChange={props.setUpCoveragePct} min={0} max={100} step={5}/>
+        <FieldNumber label="Hours saved per competent person / week" value={props.upHoursPerWeek} onChange={props.setUpHoursPerWeek} step={0.5}/>
+        <FieldNumber label="Utilization factor (%)" value={props.upUtilPct} onChange={props.setUpUtilPct} min={0} max={100} step={5}/>
       </div>
       <p style={{ ...help, marginTop:10 }}>
         ≈ Hours / year (before overlap): <strong>{Math.round(baseHours).toLocaleString()}</strong>
@@ -791,4 +857,15 @@ function GoalStep(props: {
       </div>
     </section>
   );
+}
+
+/* ============================================================
+   Utilities
+============================================================ */
+function maturityLabel(n:number){
+  if (n<=2) return 'Early: ad-hoc experiments; big wins from prompt basics + workflow mapping';
+  if (n<=4) return 'Emerging: pockets of AI use; templates + enablement unlock compounding gains';
+  if (n<=6) return 'Developing: growing adoption; guardrails & analytics standardize outcomes';
+  if (n<=8) return 'Scaled: embedded in key workflows; focus on quality & reliability';
+  return 'Advanced: pervasive; optimization, automation, and continuous improvement';
 }
