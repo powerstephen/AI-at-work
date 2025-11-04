@@ -1,125 +1,25 @@
-/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Base Theme ===== */
+/* Optional: nicer text rendering + base colors */
 :root {
   --brainster-blue: #3366fe;
-  --hero-overlay: linear-gradient(
-    135deg,
-    rgba(12, 20, 40, 0.75) 0%,
-    rgba(9, 20, 60, 0.6) 35%,
-    rgba(9, 20, 60, 0.35) 60%,
-    rgba(0, 0, 0, 0.2) 100%
-  );
-  --text-on-hero: #ffffff;
-  --kpi-bg: rgba(255, 255, 255, 0.08);
-  --kpi-border: rgba(255, 255, 255, 0.18);
 }
 
-/* ===== Hero styles (background image loaded from /public/hero.png) ===== */
-.hero-wrapper {
-  position: relative;
-  border-radius: 18px;
-  overflow: hidden;
-  margin: 24px auto 16px;
-  max-width: 1100px;
-  min-height: 360px;
-  background:
-    var(--hero-overlay),
-    url("/hero.png") center/cover no-repeat;
-  box-shadow: 0 22px 60px rgba(10, 30, 90, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+html, body {
+  height: 100%;
 }
 
-/* extra gradient glow layer */
-.hero-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-      1200px 400px at 30% -10%,
-      rgba(51, 102, 254, 0.35),
-      transparent 55%
-    ),
-    radial-gradient(
-      800px 300px at 85% 10%,
-      rgba(115, 157, 255, 0.25),
-      transparent 50%
-    );
+body {
+  color: #ffffff;
+  background-color: #0b1022; /* matches layout.tsx body class */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.hero-content {
-  position: relative;
-  z-index: 1;
-  color: var(--text-on-hero);
-  padding: 28px;
-}
-
-.hero-kicker {
-  font-size: 0.875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 10px;
-}
-
-.hero-title {
-  font-size: clamp(28px, 4vw, 44px);
-  line-height: 1.1;
-  font-weight: 800;
-  margin: 0 0 10px;
-}
-
-.hero-subtitle {
-  font-size: clamp(14px, 1.6vw, 18px);
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.92);
-  max-width: 920px;
-  margin-bottom: 18px;
-}
-
-.hero-kpis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.hero-kpi {
-  background: var(--kpi-bg);
-  border: 1px solid var(--kpi-border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  backdrop-filter: blur(2px);
-}
-
-.kpi-label {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.kpi-value {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.kpi-hint {
-  margin-top: 4px;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* Mobile handling */
-@media (max-width: 920px) {
-  .hero-wrapper {
-    border-radius: 14px;
-    margin: 16px 12px;
-  }
-  .hero-kpis {
-    grid-template-columns: 1fr 1fr;
-  }
+/* Prose inverse helper if you use @tailwind/typography */
+.prose-invert {
+  --tw-prose-body: rgba(255, 255, 255, 0.9);
+  --tw-prose-headings: #ffffff;
 }
