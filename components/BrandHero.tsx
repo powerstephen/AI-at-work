@@ -1,38 +1,57 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+
+const SOURCES = [
+  { key: "public", url: "/hero.png" },
+  {
+    key: "github",
+    url: "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png",
+  },
+  { key: "fallback", url: "https://picsum.photos/1600/800" },
+];
 
 export default function BrandHero() {
-  const [heroSrc, setHeroSrc] = useState("/hero.png");
+  const [idx, setIdx] = useState(0); // which source are we using
+  const [loaded, setLoaded] = useState(false);
+
+  const src = SOURCES[idx]?.url ?? "";
 
   useEffect(() => {
-    // Try fetching the local hero
-    fetch("/hero.png", { method: "HEAD" })
-      .then((res) => {
+    // Try a HEAD request to see if current source is reachable (works for same-origin and most CDNs)
+    // If it fails, advance to the next source.
+    const trySource = async () => {
+      try {
+        const res = await fetch(SOURCES[idx].url, { method: "HEAD" });
         if (!res.ok) {
-          // fallback to GitHub if not found
-          setHeroSrc(
-            "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png"
-          );
+          // advance to next source
+          setIdx((i) => Math.min(i + 1, SOURCES.length - 1));
         }
-      })
-      .catch(() => {
-        setHeroSrc(
-          "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png"
-        );
-      });
-  }, []);
+      } catch {
+        setIdx((i) => Math.min(i + 1, SOURCES.length - 1));
+      }
+    };
+    trySource();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx]);
 
   return (
     <section className="relative max-w-6xl mx-auto my-8 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-      {/* Background Image */}
+      {/* Background image (with onError safeguard) */}
       <img
-        src={heroSrc}
+        src={src}
         alt="Hero Background"
         className="absolute inset-0 w-full h-full object-cover"
+        onLoad={() => setLoaded(true)}
+        onError={() => setIdx((i) => Math.min(i + 1, SOURCES.length - 1))}
       />
 
-      {/* Overlay gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1635]/70 via-[#1e2a5e]/50 to-[#3366fe]/40" />
+      {/* If absolutely everything fails, show a hard gradient */}
+      {!loaded && idx === SOURCES.length - 1 && (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0b1635] via-[#1e2a5e] to-[#3366fe]" />
+      )}
+
+      {/* Overlay gradient for readability */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1635]/75 via-[#0b1635]/45 to-[#000000]/25" />
 
       {/* Content */}
       <div className="relative z-10 p-6 sm:p-8 lg:p-10 text-white">
@@ -65,6 +84,11 @@ export default function BrandHero() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Tiny debug badge so we can see which source loaded */}
+      <div className="absolute bottom-2 right-2 z-20 text-[11px] px-2 py-1 rounded bg-black/60 border border-white/15 text-white/90">
+        img source: <strong>{SOURCES[idx]?.key}</strong>
       </div>
     </section>
   );
