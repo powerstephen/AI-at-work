@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Optional: nicer text rendering + base colors */
 :root {
   --brainster-blue: #3366fe;
 }
@@ -13,13 +12,7 @@ html, body {
 
 body {
   color: #ffffff;
-  background-color: #0b1022; /* matches layout.tsx body class */
+  background-color: #0b1022;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Prose inverse helper if you use @tailwind/typography */
-.prose-invert {
-  --tw-prose-body: rgba(255, 255, 255, 0.9);
-  --tw-prose-headings: #ffffff;
 }
