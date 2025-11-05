@@ -3,12 +3,12 @@
 import React, { useMemo, useState } from "react";
 import BrandHero from "../components/BrandHero";
 
-/** ——— Basics ——— */
+/** ===== Basics ===== */
 type Currency = "$" | "€" | "£";
 const fmt = (n: number) => n.toLocaleString();
 const money = (n: number, c: Currency) => `${c} ${Math.round(n).toLocaleString()}`;
 
-/** Maturity → hours saved / employee / week (your curve) */
+/** Maturity → hours saved / employee / week */
 const MATURITY_HOURS: Record<number, number> = {
   1: 5.0, 2: 4.6, 3: 4.2, 4: 3.8, 5: 3.4, 6: 3.0, 7: 2.6, 8: 2.2, 9: 1.6, 10: 1.0,
 };
@@ -23,7 +23,7 @@ const PRIORITIES = [
 ] as const;
 type PriorityKey = typeof PRIORITIES[number]["key"];
 
-/** UI bits */
+/** Small UI helpers */
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="text-blue-200 text-[11px] uppercase tracking-wide">{children}</div>
 );
@@ -98,7 +98,7 @@ export default function Page() {
   const [improvementPct, setImprovementPct] = useState(10);
   const [replacementCost, setReplacementCost] = useState(8000);
 
-  /** ——— Math ——— */
+  /** ===== Math ===== */
   const weeksPerMonth = 4.33;
   const teamHoursPerMonth = hoursPerEmpPerWeek * weeksPerMonth * employees;
   const monthlyProdSavings = teamHoursPerMonth * hourlyCost;
@@ -114,7 +114,7 @@ export default function Page() {
   const paybackMonths = net > 0 ? Math.ceil(programTotal / net) : Infinity;
   const annualROI = programTotal > 0 ? (net * 12) / programTotal : 0;
 
-  /** By-priority split */
+  /** Split by priority */
   const rows = useMemo(() => {
     const map = new Map<PriorityKey, number>();
     let sum = 0;
@@ -135,6 +135,7 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-[#0b1022] text-white">
       <div className="px-4 md:px-8 max-w-6xl mx-auto pt-6 md:pt-10">
+        {/* PURE IMAGE HERO (no text overlay or KPI tiles) */}
         <BrandHero />
       </div>
 
@@ -182,51 +183,41 @@ export default function Page() {
             <H2>Step 2 — AI Benchmark</H2>
             <div className="text-blue-300/90 text-sm">Where are you today?</div>
           </div>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <Label>AI Maturity (1–10)</Label>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={maturity}
-                onChange={(e) => setMaturity(parseInt(e.target.value))}
-                className="w-full accent-blue-500 mt-3"
-              />
-              <div className="mt-1 flex justify-between text-[12px] text-blue-200/80">
-                {Array.from({ length: 10 }).map((_, i) => <span key={i+1}>{i+1}</span>)}
-              </div>
-
-              <div className="rounded-xl bg-[#0c1633] border border-blue-500/20 p-4 mt-4">
-                <div className="text-blue-200 text-sm mb-1">
-                  Selected level: <span className="text-white font-semibold">{maturity}</span>
-                </div>
-                <div className="text-blue-200/90 text-sm">
-                  {maturity <= 3 && "Early: ad-hoc experiments; big wins from prompt basics & workflow mapping."}
-                  {maturity >= 4 && maturity <= 7 && "Developing: AI used in parts of the workflow; standardization yields leverage."}
-                  {maturity >= 8 && "Advanced: AI embedded across workflows; focus on quality systems & scale."}
-                </div>
-              </div>
+          <div>
+            <Label>AI Maturity (1–10)</Label>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={maturity}
+              onChange={(e) => setMaturity(parseInt(e.target.value))}
+              className="w-full accent-blue-500 mt-3"
+            />
+            <div className="mt-1 flex justify-between text-[12px] text-blue-200/80">
+              {Array.from({ length: 10 }).map((_, i) => <span key={i+1}>{i+1}</span>)}
             </div>
 
-            <div className="rounded-xl bg-[#0c1633] border border-blue-500/20 p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
-                  <div className="text-blue-200 text-[11px] uppercase tracking-wide">Maturity</div>
-                  <div className="text-white text-lg font-semibold">{maturity}/10</div>
-                </div>
-                <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
-                  <div className="text-blue-200 text-[11px] uppercase tracking-wide">Employees</div>
-                  <div className="text-white text-lg font-semibold">{fmt(employees)}</div>
-                </div>
+            <div className="rounded-xl bg-[#0c1633] border border-blue-500/20 p-4 mt-4">
+              <div className="text-blue-200 text-sm mb-1">
+                Selected level: <span className="text-white font-semibold">{maturity}</span>
+              </div>
+              <div className="text-blue-200/90 text-sm">
+                {maturity <= 3 && "Early: ad-hoc experiments; big wins from prompt basics & workflow mapping."}
+                {maturity >= 4 && maturity <= 7 && "Developing: AI used in parts of the workflow; standardization yields leverage."}
+                {maturity >= 8 && "Advanced: AI embedded across workflows; focus on quality systems & scale."}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
                   <div className="text-blue-200 text-[11px] uppercase tracking-wide">Hours / emp / week</div>
                   <div className="text-white text-lg font-semibold">{(hoursPerEmpPerWeek).toFixed(1)}h</div>
                 </div>
                 <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
                   <div className="text-blue-200 text-[11px] uppercase tracking-wide">Team hours / month</div>
-                  <div className="text-white text-lg font-semibold">{fmt(Math.round(hoursPerEmpPerWeek * 4.33 * employees))}h</div>
+                  <div className="text-white text-lg font-semibold">
+                    {fmt(Math.round(hoursPerEmpPerWeek * 4.33 * employees))}h
+                  </div>
                 </div>
               </div>
             </div>
