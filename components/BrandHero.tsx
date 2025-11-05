@@ -1,50 +1,100 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+/**
+ * This component tries hero.png from THREE sources, in order:
+ * 1) Local /public/hero.png (fastest when it exists in the deployed build)
+ * 2) Raw GitHub CDN (always available if the file is in your repo)
+ * 3) Gradient fallback (never breaks layout)
+ */
 export default function BrandHero() {
-  const [fallback, setFallback] = useState(false);
+  const [bg, setBg] = useState<string | null>(null);
 
-  // cache-busting query param ensures Vercel pulls new image
-  const HERO_URL = "/hero.png?v=4";
+  // Update this to the RAW link of your GitHub file (not the HTML page URL).
+  // How to get it: Open hero.png in GitHub → click "Download raw file".
+  const RAW_GITHUB =
+    "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png";
+
+  // Add a small cache-buster so browsers don’t keep an old 404 in memory
+  const LOCAL = "/hero.png?v=5";
+  const REMOTE = `${RAW_GITHUB}?v=5`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Try local first
+    const tryLocal = async () => {
+      try {
+        const r = await fetch(LOCAL, { method: "HEAD", cache: "no-store" });
+        if (!cancelled && r.ok) {
+          setBg(LOCAL);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    // Then try remote (GitHub raw)
+    const tryRemote = async () => {
+      try {
+        const r = await fetch(REMOTE, { method: "HEAD", cache: "no-store" });
+        if (!cancelled && r.ok) {
+          setBg(REMOTE);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    (async () => {
+      const okLocal = await tryLocal();
+      if (!okLocal) {
+        const okRemote = await tryRemote();
+        if (!okRemote && !cancelled) {
+          setBg(null); // fallback gradient
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const hasImage = !!bg;
 
   return (
-    <section className="w-full bg-[#0b1022] text-white">
+    <section className="w-full">
       <div
         className="relative mx-auto max-w-6xl rounded-2xl overflow-hidden border border-blue-500/10"
         style={{
-          backgroundImage: fallback
-            ? "linear-gradient(180deg, #0b1022 0%, #0f1a3a 100%)"
-            : `url(${HERO_URL})`,
+          backgroundImage: hasImage
+            ? `url("${bg}")`
+            : "linear-gradient(180deg, #0b1022 0%, #0f1a3a 100%)",
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
           minHeight: "280px",
         }}
       >
-        {/* Hidden loader to detect 404 and switch to fallback */}
-        {!fallback && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={HERO_URL}
-            alt=""
-            className="hidden"
-            onError={() => setFallback(true)}
-          />
-        )}
+        {/* Overlay for legibility (kept subtle if image exists) */}
+        <div
+          className={`absolute inset-0 ${
+            hasImage ? "bg-[#0b1022]/40" : "bg-transparent"
+          }`}
+        />
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-[#0b1022]/50" />
-
-        {/* Text content */}
+        {/* Content */}
         <div className="relative z-10 px-6 md:px-10 py-8">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-center">
+          <h1 className="text-white text-3xl md:text-4xl font-semibold tracking-tight text-center">
             AI at Work — Human Productivity ROI
           </h1>
           <p className="mt-3 max-w-3xl mx-auto text-center text-blue-100/90 text-sm md:text-base">
-            Quantify time saved, payback, and retention impact from training
-            managers and teams to work effectively with AI.
+            Quantify time saved, payback, and retention impact from training managers
+            and teams to work effectively with AI.
           </p>
 
+          {/* What the report shows (unchanged layout) */}
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto">
             {[
               { label: "Monthly savings", value: "Auto-calculated" },
