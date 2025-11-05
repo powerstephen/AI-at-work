@@ -1,10 +1,69 @@
-/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Optional: improve font rendering a bit */
+:root {
+  --brand: #3366fe;
+}
+
 html, body {
+  min-height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reusable card + headings */
+.section-card {
+  @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5 md:p-6;
+}
+.section-title {
+  @apply text-lg md:text-xl font-semibold;
+}
+
+.kpi-tile {
+  @apply rounded-xl bg-white/10 p-4;
+}
+.kpi-label {
+  @apply text-xs text-white/70;
+}
+.kpi-value {
+  @apply text-2xl font-semibold;
+}
+
+/* Step badges */
+.step-badge {
+  @apply inline-flex h-7 items-center rounded-full bg-white/10 px-3 text-sm font-medium text-white/80;
+}
+
+/* Inputs */
+.input,
+.select {
+  @apply w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none;
+}
+
+.btn-choice {
+  @apply text-left rounded-lg border border-white/10 bg-white/10 text-white hover:bg-white/15 transition p-3;
+}
+.btn-choice--active {
+  @apply bg-white text-[#0b1022] border-white;
+}
+
+/* Table */
+.table {
+  @apply w-full text-sm;
+}
+.table thead {
+  @apply bg-white/10 text-white/80;
+}
+.table th, .table td {
+  @apply px-4 py-3;
+}
+.table tbody tr {
+  @apply border-t border-white/10;
+}
+.table tbody tr:hover {
+  @apply bg-white/5;
+}
+.table tfoot td {
+  @apply border-t border-white/20 bg-white/5 font-semibold;
 }
