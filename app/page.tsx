@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import BrandHero from "../components/BrandHero";
 
-/** ————— Types & helpers ————— */
+/** ----------------- Types & helpers ----------------- */
 type Currency = "$" | "€" | "£";
 const fmt = (n: number) => n.toLocaleString();
 const money = (n: number, c: Currency) => `${c} ${Math.round(n).toLocaleString()}`;
@@ -21,7 +21,7 @@ const PRIORITIES = [
 ] as const;
 type PriorityKey = typeof PRIORITIES[number]["key"];
 
-/** ————— UI atoms ————— */
+/** ----------------- Small UI atoms ----------------- */
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="text-blue-200 text-[11px] uppercase tracking-wide">{children}</div>
 );
@@ -87,8 +87,11 @@ function CurrencyPicker({
   );
 }
 
-/** ————— Page ————— */
+/** ----------------- Page ----------------- */
 export default function Page() {
+  // wizard state
+  const [step, setStep] = useState(1);
+
   /** STEP 1 — Team */
   const [dept, setDept] = useState("Company-wide");
   const [employees, setEmployees] = useState(25);
@@ -108,7 +111,7 @@ export default function Page() {
   const togglePriority = (k: PriorityKey) =>
     setSelected((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
-  /** STEP 4 — Training, Duration, Retention */
+  /** STEP 4 — Training & Duration (+ optional retention) */
   const [trainingHoursPerEmp, setTrainingHoursPerEmp] = useState(8);
   const [trainingCostPerEmp, setTrainingCostPerEmp] = useState(300);
   const [programOneOff, setProgramOneOff] = useState(2000);
@@ -155,78 +158,97 @@ export default function Page() {
     });
   }, [selected, teamHoursPerMonth, hourlyCost]);
 
-  /** ——— Render ——— */
+  // progress %
+  const maxStep = 5;
+  const pct = ((step - 1) / (maxStep - 1)) * 100;
+
   return (
-    <div className="min-h-screen bg-[#0b1022] text-white">
-      <div className="px-4 md:px-8 max-w-6xl mx-auto pt-6 md:pt-10">
+    <div className="pb-16">
+      <div className="container pt-6 md:pt-10">
         <BrandHero />
       </div>
 
-      <main className="px-4 md:px-8 max-w-6xl mx-auto pb-16 space-y-8 mt-6">
-        {/* STEP 1 — Team */}
-        <Card>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <H2>Step 1 — Team</H2>
-            <div className="text-blue-300/90 text-sm">Department, team size, currency</div>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <Label>Department</Label>
-              <select
-                className="mt-1 w-full rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                value={dept}
-                onChange={(e) => setDept(e.target.value)}
-              >
-                {[
-                  "Company-wide",
-                  "Marketing",
-                  "Sales",
-                  "Customer Support",
-                  "Operations",
-                  "Engineering",
-                  "HR",
-                ].map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+      {/* Progress */}
+      <div className="container mt-6">
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex justify-between text-[12px] text-blue-200/80 mt-2">
+          <span>Team</span>
+          <span>Benchmark</span>
+          <span>Priorities</span>
+          <span>Training</span>
+          <span>Results</span>
+        </div>
+      </div>
+
+      <main className="container mt-6 space-y-8">
+        {/* STEP 1 */}
+        {step === 1 && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <H2>Step 1 — Team</H2>
+              <div className="text-blue-300/90 text-sm">Department, team size, currency</div>
             </div>
-            <div>
-              <Label>Employees in scope</Label>
-              <NumberInput className="mt-1" value={employees} onChange={setEmployees} min={1} />
-            </div>
-            <div>
-              <Label>Currency</Label>
-              <div className="mt-1">
-                <CurrencyPicker currency={currency} onChange={setCurrency} />
+            <div className="grid md:grid-cols-3 gap-6">
+              <div>
+                <Label>Department</Label>
+                <select
+                  className="mt-1 w-full rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  value={dept}
+                  onChange={(e) => setDept(e.target.value)}
+                >
+                  {[
+                    "Company-wide",
+                    "Marketing",
+                    "Sales",
+                    "Customer Support",
+                    "Operations",
+                    "Engineering",
+                    "HR",
+                  ].map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Employees in scope</Label>
+                <NumberInput className="mt-1" value={employees} onChange={setEmployees} min={1} />
+              </div>
+              <div>
+                <Label>Currency</Label>
+                <div className="mt-1">
+                  <CurrencyPicker currency={currency} onChange={setCurrency} />
+                </div>
               </div>
             </div>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6 mt-6">
-            <div>
-              <Label>Avg. fully-loaded hourly cost</Label>
-              <NumberInput
-                className="mt-1"
-                value={hourlyCost}
-                onChange={setHourlyCost}
-                min={1}
-                suffix={currency}
-              />
-              <p className="text-blue-200/80 text-sm mt-1">
-                Includes salary, benefits & overhead.
-              </p>
+            <div className="grid md:grid-cols-3 gap-6 mt-6">
+              <div>
+                <Label>Avg. fully-loaded hourly cost</Label>
+                <NumberInput
+                  className="mt-1"
+                  value={hourlyCost}
+                  onChange={setHourlyCost}
+                  min={1}
+                  suffix={currency}
+                />
+                <p className="text-blue-200/80 text-sm mt-1">
+                  Includes salary, benefits & overhead.
+                </p>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        {/* STEP 2 — AI Benchmark */}
-        <Card>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <H2>Step 2 — AI Benchmark</H2>
-            <div className="text-blue-300/90 text-sm">Where are you today?</div>
-          </div>
-          <div>
+        {/* STEP 2 */}
+        {step === 2 && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <H2>Step 2 — AI Benchmark</H2>
+              <div className="text-blue-300/90 text-sm">Where are you today?</div>
+            </div>
             <Label>AI Maturity (1–10)</Label>
             <input
               type="range"
@@ -242,7 +264,6 @@ export default function Page() {
                 <span key={i + 1}>{i + 1}</span>
               ))}
             </div>
-
             <div className="rounded-xl bg-[#0c1633] border border-blue-500/20 p-4 mt-4">
               <div className="text-blue-200 text-sm mb-1">
                 Selected level: <span className="text-white font-semibold">{maturity}</span>
@@ -250,8 +271,7 @@ export default function Page() {
               <div className="text-blue-200/90 text-sm">
                 {maturity <= 3 &&
                   "Early: ad-hoc experiments; big wins from prompt basics & workflow mapping."}
-                {maturity >= 4 &&
-                  maturity <= 7 &&
+                {maturity >= 4 && maturity <= 7 &&
                   "Developing: AI used in parts of the workflow; standardization yields leverage."}
                 {maturity >= 8 &&
                   "Advanced: AI embedded across workflows; focus on quality systems & scale."}
@@ -263,7 +283,7 @@ export default function Page() {
                     Hours / emp / week
                   </div>
                   <div className="text-white text-lg font-semibold">
-                    {hoursPerEmpPerWeek.toFixed(1)}h
+                    {MATURITY_HOURS[maturity].toFixed(1)}h
                   </div>
                 </div>
                 <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
@@ -271,222 +291,233 @@ export default function Page() {
                     Team hours / month
                   </div>
                   <div className="text-white text-lg font-semibold">
-                    {fmt(Math.round(hoursPerEmpPerWeek * 4.33 * employees))}h
+                    {fmt(Math.round(MATURITY_HOURS[maturity] * 4.33 * employees))}h
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        {/* STEP 3 — Priorities */}
-        <Card>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <H2>Step 3 — Priorities</H2>
-            <div className="text-blue-300/90 text-sm">Pick where improvements matter most</div>
-          </div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {PRIORITIES.map((p) => {
-              const active = selected.includes(p.key);
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => togglePriority(p.key)}
-                  className={`text-left rounded-xl border p-4 transition ${
-                    active
-                      ? "border-blue-400 bg-blue-600/20"
-                      : "border-blue-500/20 bg-[#0c1633] hover:border-blue-400/40"
-                  }`}
-                >
-                  <div className="text-white font-semibold">{p.label}</div>
-                  <div className="text-blue-200/90 text-sm mt-1">{p.blurb}</div>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-blue-200/80 text-sm mt-2">
-            Tip: choose the levers you’d report on this quarter. Savings split across selections
-            using sensible defaults.
-          </p>
-        </Card>
+        {/* STEP 3 */}
+        {step === 3 && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <H2>Step 3 — Priorities</H2>
+              <div className="text-blue-300/90 text-sm">Pick where improvements matter most</div>
+            </div>
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {PRIORITIES.map((p) => {
+                const active = selected.includes(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    onClick={() => togglePriority(p.key)}
+                    className={`text-left rounded-xl border p-4 transition ${
+                      active
+                        ? "border-blue-400 bg-blue-600/20"
+                        : "border-blue-500/20 bg-[#0c1633] hover:border-blue-400/40"
+                    }`}
+                  >
+                    <div className="text-white font-semibold">{p.label}</div>
+                    <div className="text-blue-200/90 text-sm mt-1">{p.blurb}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-blue-200/80 text-sm mt-2">
+              Tip: choose the levers you’d report on this quarter.
+            </p>
+          </Card>
+        )}
 
-        {/* STEP 4 — Training & Duration (+ optional retention) */}
-        <Card>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <H2>Step 4 — Training & Duration</H2>
-            <div className="text-blue-300/90 text-sm">Cost to enable + amortization</div>
-          </div>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div>
-              <Label>Training hours / employee</Label>
-              <NumberInput
-                className="mt-1"
-                value={trainingHoursPerEmp}
-                onChange={setTrainingHoursPerEmp}
-                min={0}
-                suffix="h"
-              />
+        {/* STEP 4 */}
+        {step === 4 && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <H2>Step 4 — Training & Duration</H2>
+              <div className="text-blue-300/90 text-sm">Cost to enable + amortization</div>
             </div>
-            <div>
-              <Label>Training cost / employee</Label>
-              <NumberInput
-                className="mt-1"
-                value={trainingCostPerEmp}
-                onChange={setTrainingCostPerEmp}
-                min={0}
-                suffix={currency}
-              />
-            </div>
-            <div>
-              <Label>Program one-off cost</Label>
-              <NumberInput
-                className="mt-1"
-                value={programOneOff}
-                onChange={setProgramOneOff}
-                min={0}
-                suffix={currency}
-              />
-            </div>
-            <div>
-              <Label>Amortization (months)</Label>
-              <NumberInput className="mt-1" value={months} onChange={setMonths} min={1} />
-            </div>
-          </div>
-
-          {selected.includes("retention") && (
-            <div className="mt-6 rounded-xl border border-blue-500/20 p-4 bg-[#0c1633]">
-              <div className="text-blue-200/90 font-medium mb-3">
-                Retention assumptions (only if “Retention” is selected)
+            <div className="grid md:grid-cols-4 gap-6">
+              <div>
+                <Label>Training hours / employee</Label>
+                <NumberInput
+                  className="mt-1"
+                  value={trainingHoursPerEmp}
+                  onChange={setTrainingHoursPerEmp}
+                  min={0}
+                  suffix="h"
+                />
               </div>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div>
-                  <Label>Baseline turnover (annual)</Label>
-                  <NumberInput
-                    className="mt-1"
-                    value={baselineTurnoverPct}
-                    onChange={setBaselineTurnoverPct}
-                    min={0}
-                    suffix="%"
-                  />
+              <div>
+                <Label>Training cost / employee</Label>
+                <NumberInput
+                  className="mt-1"
+                  value={trainingCostPerEmp}
+                  onChange={setTrainingCostPerEmp}
+                  min={0}
+                  suffix={currency}
+                />
+              </div>
+              <div>
+                <Label>Program one-off cost</Label>
+                <NumberInput
+                  className="mt-1"
+                  value={programOneOff}
+                  onChange={setProgramOneOff}
+                  min={0}
+                  suffix={currency}
+                />
+              </div>
+              <div>
+                <Label>Amortization (months)</Label>
+                <NumberInput className="mt-1" value={months} onChange={setMonths} min={1} />
+              </div>
+            </div>
+
+            {selected.includes("retention") && (
+              <div className="mt-6 rounded-xl border border-blue-500/20 p-4 bg-[#0c1633]">
+                <div className="text-blue-200/90 font-medium mb-3">
+                  Retention assumptions (only if “Retention” is selected)
                 </div>
-                <div>
-                  <Label>Expected improvement</Label>
-                  <NumberInput
-                    className="mt-1"
-                    value={improvementPct}
-                    onChange={setImprovementPct}
-                    min={0}
-                    suffix="%"
-                  />
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div>
+                    <Label>Baseline turnover (annual)</Label>
+                    <NumberInput
+                      className="mt-1"
+                      value={baselineTurnoverPct}
+                      onChange={setBaselineTurnoverPct}
+                      min={0}
+                      suffix="%"
+                    />
+                  </div>
+                  <div>
+                    <Label>Expected improvement</Label>
+                    <NumberInput
+                      className="mt-1"
+                      value={improvementPct}
+                      onChange={setImprovementPct}
+                      min={0}
+                      suffix="%"
+                    />
+                  </div>
+                  <div>
+                    <Label>Replacement cost / employee</Label>
+                    <NumberInput
+                      className="mt-1"
+                      value={replacementCost}
+                      onChange={setReplacementCost}
+                      min={0}
+                      suffix={currency}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label>Replacement cost / employee</Label>
-                  <NumberInput
-                    className="mt-1"
-                    value={replacementCost}
-                    onChange={setReplacementCost}
-                    min={0}
-                    suffix={currency}
-                  />
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* STEP 5 */}
+        {step === 5 && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <H2>Step 5 — Results</H2>
+              <div className="text-blue-300/90 text-sm">Summary + breakdown</div>
+            </div>
+
+            {/* KPI boxes */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
+                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
+                  Monthly savings (gross)
+                </div>
+                <div className="text-2xl font-semibold mt-1">
+                  {money(monthlyGross, currency)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
+                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
+                  Amortized training / month
+                </div>
+                <div className="text-2xl font-semibold mt-1">{money(amortized, currency)}</div>
+              </div>
+              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
+                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
+                  Monthly savings (net)
+                </div>
+                <div className="text-2xl font-semibold mt-1">{money(net, currency)}</div>
+              </div>
+              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
+                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
+                  Hours saved / year (team)
+                </div>
+                <div className="text-2xl font-semibold mt-1">
+                  {fmt(Math.round(MATURITY_HOURS[maturity] * 4.33 * employees * 12))}h
                 </div>
               </div>
             </div>
-          )}
-        </Card>
 
-        {/* STEP 5 — Results */}
-        <Card>
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <H2>Step 5 — Results</H2>
-            <div className="text-blue-300/90 text-sm">Summary + breakdown</div>
-          </div>
-
-          {/* KPI boxes */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-              <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                Monthly savings (gross)
-              </div>
-              <div className="text-2xl font-semibold mt-1">
-                {money(monthlyGross, currency)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-              <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                Amortized training / month
-              </div>
-              <div className="text-2xl font-semibold mt-1">{money(amortized, currency)}</div>
-            </div>
-            <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-              <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                Monthly savings (net)
-              </div>
-              <div className="text-2xl font-semibold mt-1">{money(net, currency)}</div>
-            </div>
-            <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-              <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                Hours saved / year (team)
-              </div>
-              <div className="text-2xl font-semibold mt-1">
-                {fmt(Math.round(hoursPerEmpPerWeek * 4.33 * employees * 12))}h
-              </div>
-            </div>
-          </div>
-
-          {/* Payback & ROI */}
-          <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4 mb-6 flex flex-wrap items-center gap-4 justify-between">
-            <div className="text-blue-200/90">
-              <span className="text-white font-semibold">Payback:</span>{" "}
-              {Number.isFinite(paybackMonths) ? `${paybackMonths} months` : "Not reached (adjust inputs)"}
-            </div>
-            <div className="text-blue-200/90">
-              <span className="text-white font-semibold">Annual ROI:</span>{" "}
-              {annualROI > 0 ? `${annualROI.toFixed(1)}×` : "—"}
-            </div>
-            <div className="text-blue-200/90">
-              <span className="text-white font-semibold">Program cost (one-off):</span>{" "}
-              {money(programTotal, currency)}
-            </div>
-          </div>
-
-          {/* Breakdown table */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-blue-200/90">
-                  <th className="py-2 pr-4 font-medium">Priority</th>
-                  <th className="py-2 pr-4 font-medium">Why it matters</th>
-                  <th className="py-2 pr-4 font-medium text-right">Hours / month</th>
-                  <th className="py-2 pr-0 font-medium text-right">Value / month</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.label} className="border-t border-blue-500/10">
-                    <td className="py-2 pr-4 text-white">{r.label}</td>
-                    <td className="py-2 pr-4 text-blue-200/90">{r.blurb}</td>
-                    <td className="py-2 pr-4 text-white text-right">
-                      {fmt(Math.round(r.hours))}h
+            {/* Breakdown table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-blue-200/90">
+                    <th className="py-2 pr-4 font-medium">Priority</th>
+                    <th className="py-2 pr-4 font-medium">Why it matters</th>
+                    <th className="py-2 pr-4 font-medium text-right">Hours / month</th>
+                    <th className="py-2 pr-0 font-medium text-right">Value / month</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.label} className="border-t border-blue-500/10">
+                      <td className="py-2 pr-4 text-white">{r.label}</td>
+                      <td className="py-2 pr-4 text-blue-200/90">{r.blurb}</td>
+                      <td className="py-2 pr-4 text-white text-right">
+                        {fmt(Math.round(r.hours))}h
+                      </td>
+                      <td className="py-2 pr-0 text-white text-right">
+                        {money(r.value, currency)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-blue-500/10">
+                    <td className="py-2 pr-4 text-white font-semibold">Total</td>
+                    <td className="py-2 pr-4" />
+                    <td className="py-2 pr-4 text-white text-right font-semibold">
+                      {fmt(Math.round(teamHoursPerMonth))}h
                     </td>
-                    <td className="py-2 pr-0 text-white text-right">
-                      {money(r.value, currency)}
+                    <td className="py-2 pr-0 text-white text-right font-semibold">
+                      {money(monthlyProdSavings, currency)}
                     </td>
                   </tr>
-                ))}
-                <tr className="border-t border-blue-500/10">
-                  <td className="py-2 pr-4 text-white font-semibold">Total</td>
-                  <td className="py-2 pr-4" />
-                  <td className="py-2 pr-4 text-white text-right font-semibold">
-                    {fmt(Math.round(teamHoursPerMonth))}h
-                  </td>
-                  <td className="py-2 pr-0 text-white text-right font-semibold">
-                    {money(monthlyProdSavings, currency)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {/* Nav buttons */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+            disabled={step === 1}
+            className={`px-4 py-2 rounded-lg border ${
+              step === 1
+                ? "opacity-50 cursor-not-allowed border-blue-500/20"
+                : "border-blue-500/30 hover:border-blue-400/60"
+            }`}
+          >
+            Back
+          </button>
+          <div className="text-blue-200/90 text-sm">Step {step} of {maxStep}</div>
+          <button
+            onClick={() => setStep((s) => Math.min(maxStep, s + 1))}
+            className="px-4 py-2 rounded-lg bg-[#3366fe] hover:bg-[#2853d6] transition"
+          >
+            {step === maxStep ? "Finish" : "Next"}
+          </button>
+        </div>
       </main>
     </div>
   );
