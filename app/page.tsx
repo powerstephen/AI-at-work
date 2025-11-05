@@ -1,9 +1,8 @@
 // app/page.tsx
-import BrandHero from "@/components/BrandHero";
+import BrandHero from "../components/BrandHero"; // <- relative path
 
 const GOALS = ["throughput", "quality", "onboarding", "retention", "upskilling"] as const;
 type Goal = (typeof GOALS)[number];
-
 type BreakdownRow = { key: Goal; label: string; value: number };
 
 const GOAL_META: Record<Goal, { label: string; hint?: string }> = {
