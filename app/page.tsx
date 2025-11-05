@@ -3,16 +3,17 @@
 import React, { useMemo, useState } from "react";
 import BrandHero from "../components/BrandHero";
 
-/** Simple helpers */
+/** ——— Basics ——— */
 type Currency = "$" | "€" | "£";
 const fmt = (n: number) => n.toLocaleString();
 const money = (n: number, c: Currency) => `${c} ${Math.round(n).toLocaleString()}`;
 
-/** Maturity → hours saved / employee / week */
+/** Maturity → hours saved / employee / week (your curve) */
 const MATURITY_HOURS: Record<number, number> = {
   1: 5.0, 2: 4.6, 3: 4.2, 4: 3.8, 5: 3.4, 6: 3.0, 7: 2.6, 8: 2.2, 9: 1.6, 10: 1.0,
 };
 
+/** Priority meta */
 const PRIORITIES = [
   { key: "throughput", label: "Throughput", blurb: "Ship faster; reduce cycle time.", weight: 0.30 },
   { key: "quality", label: "Quality", blurb: "Fewer reworks; better first-pass yield.", weight: 0.20 },
@@ -22,12 +23,12 @@ const PRIORITIES = [
 ] as const;
 type PriorityKey = typeof PRIORITIES[number]["key"];
 
-/** Small atoms */
+/** UI bits */
 const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="text-blue-200 text-[11px] uppercase tracking-wide">{children}</div>
 );
 const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <section className={`rounded-2xl border border-blue-500/10 bg-[#0f1a3a]/40 p-6 md:p-8 ${className}`}>{children}</section>
+  <section className={`rounded-2xl border border-blue-500/10 bg-[#0f1430]/60 p-6 md:p-8 ${className}`}>{children}</section>
 );
 const H2 = ({ children }: { children: React.ReactNode }) => (
   <h2 className="text-xl md:text-2xl font-semibold text-white">{children}</h2>
@@ -44,7 +45,7 @@ function NumberInput(props: {
         min={min}
         step={step}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-40 rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white"
+        className="w-40 rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
       />
       {suffix && <span className="text-blue-200 text-sm">{suffix}</span>}
     </div>
@@ -58,8 +59,10 @@ function CurrencyPicker({ currency, onChange }: { currency: Currency; onChange: 
         <button
           key={c}
           onClick={() => onChange(c)}
-          className={`px-3 py-2 rounded-lg border ${
-            currency === c ? "bg-blue-600/80 border-blue-400 text-white" : "bg-[#0c1633] border-blue-500/20 text-blue-200/90"
+          className={`px-3 py-2 rounded-lg border transition ${
+            currency === c
+              ? "bg-blue-600/90 border-blue-400 text-white"
+              : "bg-[#0c1633] border-blue-500/20 text-blue-200/90 hover:border-blue-400/50"
           }`}
         >
           {c}
@@ -70,22 +73,22 @@ function CurrencyPicker({ currency, onChange }: { currency: Currency; onChange: 
 }
 
 export default function Page() {
-  /** STEP 1 — TEAM */
+  /** STEP 1 — Team */
   const [dept, setDept] = useState("Company-wide");
   const [employees, setEmployees] = useState(25);
   const [currency, setCurrency] = useState<Currency>("€");
   const [hourlyCost, setHourlyCost] = useState(50);
 
-  /** STEP 2 — MATURITY */
+  /** STEP 2 — AI Benchmark */
   const [maturity, setMaturity] = useState(3);
   const hoursPerEmpPerWeek = MATURITY_HOURS[maturity] ?? 3;
 
-  /** STEP 3 — PRIORITIES */
+  /** STEP 3 — Priorities */
   const [selected, setSelected] = useState<PriorityKey[]>(["throughput", "quality", "onboarding"]);
   const togglePriority = (k: PriorityKey) =>
     setSelected((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
-  /** STEP 4 — TRAINING & DURATION (+ retention) */
+  /** STEP 4 — Training, Duration, Retention */
   const [trainingHoursPerEmp, setTrainingHoursPerEmp] = useState(8);
   const [trainingCostPerEmp, setTrainingCostPerEmp] = useState(300);
   const [programOneOff, setProgramOneOff] = useState(2000);
@@ -95,7 +98,7 @@ export default function Page() {
   const [improvementPct, setImprovementPct] = useState(10);
   const [replacementCost, setReplacementCost] = useState(8000);
 
-  /** CALCS */
+  /** ——— Math ——— */
   const weeksPerMonth = 4.33;
   const teamHoursPerMonth = hoursPerEmpPerWeek * weeksPerMonth * employees;
   const monthlyProdSavings = teamHoursPerMonth * hourlyCost;
@@ -111,7 +114,7 @@ export default function Page() {
   const paybackMonths = net > 0 ? Math.ceil(programTotal / net) : Infinity;
   const annualROI = programTotal > 0 ? (net * 12) / programTotal : 0;
 
-  /** Split savings across selected priorities (normalize weights) */
+  /** By-priority split */
   const rows = useMemo(() => {
     const map = new Map<PriorityKey, number>();
     let sum = 0;
@@ -131,13 +134,12 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-[#0b1022] text-white">
-      {/* HERO */}
-      <div className="px-4 py-6 md:px-8 md:py-10">
+      <div className="px-4 md:px-8 max-w-6xl mx-auto pt-6 md:pt-10">
         <BrandHero />
       </div>
 
-      <main className="px-4 md:px-8 max-w-6xl mx-auto pb-16 space-y-8">
-        {/* STEP 1 */}
+      <main className="px-4 md:px-8 max-w-6xl mx-auto pb-16 space-y-8 mt-6">
+        {/* STEP 1 — Team */}
         <Card>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <H2>Step 1 — Team</H2>
@@ -147,7 +149,7 @@ export default function Page() {
             <div>
               <Label>Department</Label>
               <select
-                className="mt-1 w-full rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white"
+                className="mt-1 w-full rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 value={dept}
                 onChange={(e) => setDept(e.target.value)}
               >
@@ -174,7 +176,7 @@ export default function Page() {
           </div>
         </Card>
 
-        {/* STEP 2 */}
+        {/* STEP 2 — AI Benchmark */}
         <Card>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <H2>Step 2 — AI Benchmark</H2>
@@ -182,7 +184,7 @@ export default function Page() {
           </div>
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <Label>AI Maturity</Label>
+              <Label>AI Maturity (1–10)</Label>
               <input
                 type="range"
                 min={1}
@@ -220,18 +222,18 @@ export default function Page() {
                 </div>
                 <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
                   <div className="text-blue-200 text-[11px] uppercase tracking-wide">Hours / emp / week</div>
-                  <div className="text-white text-lg font-semibold">{hoursPerEmpPerWeek.toFixed(1)}h</div>
+                  <div className="text-white text-lg font-semibold">{(hoursPerEmpPerWeek).toFixed(1)}h</div>
                 </div>
                 <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
                   <div className="text-blue-200 text-[11px] uppercase tracking-wide">Team hours / month</div>
-                  <div className="text-white text-lg font-semibold">{fmt(Math.round(hoursPerEmpPerWeek*4.33*employees))}h</div>
+                  <div className="text-white text-lg font-semibold">{fmt(Math.round(hoursPerEmpPerWeek * 4.33 * employees))}h</div>
                 </div>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* STEP 3 */}
+        {/* STEP 3 — Priorities */}
         <Card>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <H2>Step 3 — Priorities</H2>
@@ -244,8 +246,8 @@ export default function Page() {
                 <button
                   key={p.key}
                   onClick={() => togglePriority(p.key)}
-                  className={`text-left rounded-xl border p-4 ${
-                    active ? "border-blue-400 bg-blue-600/20" : "border-blue-500/20 bg-[#0c1633]"
+                  className={`text-left rounded-xl border p-4 transition ${
+                    active ? "border-blue-400 bg-blue-600/20" : "border-blue-500/20 bg-[#0c1633] hover:border-blue-400/40"
                   }`}
                 >
                   <div className="text-white font-semibold">{p.label}</div>
@@ -259,7 +261,7 @@ export default function Page() {
           </p>
         </Card>
 
-        {/* STEP 4 */}
+        {/* STEP 4 — Training & Duration (+ optional retention) */}
         <Card>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <H2>Step 4 — Training & Duration</H2>
@@ -305,7 +307,7 @@ export default function Page() {
           )}
         </Card>
 
-        {/* STEP 5 — RESULTS */}
+        {/* STEP 5 — Results */}
         <Card>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <H2>Step 5 — Results</H2>
@@ -328,7 +330,9 @@ export default function Page() {
             </div>
             <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
               <div className="text-blue-200 text-[11px] uppercase tracking-wide">Hours saved / year (team)</div>
-              <div className="text-2xl font-semibold mt-1">{fmt(Math.round(hoursPerEmpPerWeek*4.33*employees*12))}h</div>
+              <div className="text-2xl font-semibold mt-1">
+                {fmt(Math.round((hoursPerEmpPerWeek * 4.33 * employees) * 12))}h
+              </div>
             </div>
           </div>
 
@@ -336,7 +340,7 @@ export default function Page() {
           <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4 mb-6 flex flex-wrap items-center gap-4 justify-between">
             <div className="text-blue-200/90">
               <span className="text-white font-semibold">Payback:</span>{" "}
-              {Number.isFinite(paybackMonths) ? `${paybackMonths} months` : "Not reached (adjust inputs)"}
+              {Number.isFinite(paybackMonths) ? `${paybackMonths} months` : "Not reached (adjust inputs)`}
             </div>
             <div className="text-blue-200/90">
               <span className="text-white font-semibold">Annual ROI:</span>{" "}
