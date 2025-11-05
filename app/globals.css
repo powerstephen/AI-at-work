@@ -1,27 +1,10 @@
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --brand: #3366fe; /* Brainster vivid blue */
-}
-
+/* Optional: improve font rendering a bit */
 html, body {
-  background: #0b1022;
-}
-
-.container {
-  @apply max-w-5xl mx-auto px-4 md:px-8;
-}
-
-/* Progress bar */
-.progress-track {
-  height: 6px;
-  border-radius: 9999px;
-  background: rgba(51,102,254,0.2);
-}
-.progress-fill {
-  height: 6px;
-  border-radius: 9999px;
-  background: #3366fe;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
