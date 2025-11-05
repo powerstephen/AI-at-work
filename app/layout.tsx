@@ -1,14 +1,16 @@
-import "./globals.css";
-
+// app/layout.tsx
 export const metadata = {
   title: "AI at Work — Human Productivity ROI",
-  description: "Brainster-themed ROI calculator and hero.",
+  description:
+    "Quantify time saved, payback, and retention impact from training managers and teams to work effectively with AI.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className="bg-[#0b1022] antialiased">{children}</body>
+    <html lang="en" className="bg-[#0b1022]">
+      <body className="min-h-screen text-white">{children}</body>
     </html>
   );
 }
