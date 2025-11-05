@@ -4,7 +4,7 @@ import React from "react";
 export default function BrandHero() {
   return (
     <div className="relative">
-      {/* Fixed-height hero image with overlay — NO text inside */}
+      {/* Fixed-height hero image only — no text */}
       <div
         className="w-full h-[260px] md:h-[320px] rounded-2xl overflow-hidden border border-blue-500/20"
         style={{
