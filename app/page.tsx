@@ -1,524 +1,497 @@
+// app/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import BrandHero from "../components/BrandHero";
 
-/** ----------------- Types & helpers ----------------- */
-type Currency = "$" | "€" | "£";
-const fmt = (n: number) => n.toLocaleString();
-const money = (n: number, c: Currency) => `${c} ${Math.round(n).toLocaleString()}`;
+type Team =
+  | "Company-wide"
+  | "Marketing"
+  | "Sales"
+  | "Customer Support"
+  | "Operations"
+  | "Engineering"
+  | "HR";
 
-const MATURITY_HOURS: Record<number, number> = {
-  1: 5.0, 2: 4.6, 3: 4.2, 4: 3.8, 5: 3.4, 6: 3.0, 7: 2.6, 8: 2.2, 9: 1.6, 10: 1.0,
+type Currency = "$" | "€" | "£";
+
+type Priority =
+  | "throughput"
+  | "quality"
+  | "onboarding"
+  | "retention"
+  | "upskilling";
+
+const PRIORITY_LABEL: Record<Priority, string> = {
+  throughput: "Throughput",
+  quality: "Quality",
+  onboarding: "Onboarding Speed",
+  retention: "Retention",
+  upskilling: "Upskilling",
 };
 
-const PRIORITIES = [
-  { key: "throughput", label: "Throughput", blurb: "Ship faster; reduce cycle time.", weight: 0.30 },
-  { key: "quality",    label: "Quality",    blurb: "Fewer reworks; better first-pass yield.", weight: 0.20 },
-  { key: "onboarding", label: "Onboarding", blurb: "Ramp new hires quicker.", weight: 0.20 },
-  { key: "retention",  label: "Retention",  blurb: "Reduce regretted attrition.", weight: 0.15 },
-  { key: "upskilling", label: "Upskilling", blurb: "Grow AI competency coverage.", weight: 0.15 },
-] as const;
-type PriorityKey = typeof PRIORITIES[number]["key"];
+const PRIORITY_HELP: Record<Priority, string> = {
+  throughput: "Ship faster; reduce cycle time and context switching.",
+  quality: "Fewer reworks; better first-pass yield and QA guardrails.",
+  onboarding: "Ramp new hires quicker with playbooks and examples.",
+  retention:
+    "Reduce regretted attrition via engagement & career progression.",
+  upskilling:
+    "Expand AI competency coverage; make ‘good’ the default baseline.",
+};
 
-/** ----------------- Small UI atoms ----------------- */
-const Label = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-blue-200 text-[11px] uppercase tracking-wide">{children}</div>
-);
+// Simple €/$/£ symbol
+const symbol = (c: Currency) => (c === "$" ? "$" : c === "€" ? "€" : "£");
 
-const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <section className={`rounded-2xl border border-blue-500/10 bg-[#0f1430]/60 p-6 md:p-8 ${className}`}>
-    {children}
-  </section>
-);
-
-const H2 = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-xl md:text-2xl font-semibold text-white">{children}</h2>
-);
-
-function NumberInput(props: {
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  step?: number;
-  suffix?: string;
-  className?: string;
-}) {
-  const { value, onChange, min, step = 1, suffix, className = "" } = props;
-  return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <input
-        type="number"
-        value={Number.isFinite(value) ? value : 0}
-        min={min}
-        step={step}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-40 rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-      />
-      {suffix && <span className="text-blue-200 text-sm">{suffix}</span>}
-    </div>
-  );
+// AI maturity → baseline hours saved / person / week (you can tune these)
+function maturityToHoursSaved(maturity: number) {
+  // 1 → ~5 hrs/wk, 10 → ~8 hrs/wk (smaller marginal gains late-stage)
+  const min = 5;
+  const max = 8;
+  const pct = (maturity - 1) / 9; // 0..1
+  return +(min + (max - min) * pct).toFixed(1);
 }
 
-function CurrencyPicker({
-  currency,
-  onChange,
-}: {
-  currency: Currency;
-  onChange: (c: Currency) => void;
-}) {
-  const items: Currency[] = ["$", "€", "£"];
-  return (
-    <div className="flex gap-2">
-      {items.map((c) => (
-        <button
-          key={c}
-          onClick={() => onChange(c)}
-          className={`px-3 py-2 rounded-lg border transition ${
-            currency === c
-              ? "bg-blue-600/90 border-blue-400 text-white"
-              : "bg-[#0c1633] border-blue-500/20 text-blue-200/90 hover:border-blue-400/50"
-          }`}
-        >
-          {c}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** ----------------- Page ----------------- */
 export default function Page() {
-  // wizard state
-  const [step, setStep] = useState(1);
-
-  /** STEP 1 — Team */
-  const [dept, setDept] = useState("Company-wide");
-  const [employees, setEmployees] = useState(25);
+  // STEP 1 — Basics
+  const [team, setTeam] = useState<Team>("Company-wide");
+  const [employees, setEmployees] = useState<number>(50);
   const [currency, setCurrency] = useState<Currency>("€");
-  const [hourlyCost, setHourlyCost] = useState(50);
 
-  /** STEP 2 — AI Benchmark */
-  const [maturity, setMaturity] = useState(3);
-  const hoursPerEmpPerWeek = MATURITY_HOURS[maturity] ?? 3;
+  // STEP 2 — AI Maturity (slider 1..10)
+  const [maturity, setMaturity] = useState<number>(3);
 
-  /** STEP 3 — Priorities */
-  const [selected, setSelected] = useState<PriorityKey[]>([
+  // STEP 3 — Priorities (choose up to 3)
+  const [selected, setSelected] = useState<Priority[]>([
     "throughput",
     "quality",
     "onboarding",
   ]);
-  const togglePriority = (k: PriorityKey) =>
-    setSelected((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
-  /** STEP 4 — Training & Duration (+ optional retention) */
-  const [trainingHoursPerEmp, setTrainingHoursPerEmp] = useState(8);
-  const [trainingCostPerEmp, setTrainingCostPerEmp] = useState(300);
-  const [programOneOff, setProgramOneOff] = useState(2000);
-  const [months, setMonths] = useState(12);
+  // STEP 4 — Training & Duration
+  const [hourlyCost, setHourlyCost] = useState<number>(35); // fully-loaded
+  const [weeklyHoursInScope, setWeeklyHoursInScope] = useState<number>(40); // hrs / person / week considered "in scope"
+  const [durationMonths, setDurationMonths] = useState<number>(6);
 
-  const [baselineTurnoverPct, setBaselineTurnoverPct] = useState(18);
-  const [improvementPct, setImprovementPct] = useState(10);
-  const [replacementCost, setReplacementCost] = useState(8000);
+  // derived
+  const baseHoursSavedPerPersonPerWeek = useMemo(
+    () => maturityToHoursSaved(maturity),
+    [maturity]
+  );
 
-  /** ——— Math ——— */
-  const weeksPerMonth = 4.33;
-  const teamHoursPerMonth = hoursPerEmpPerWeek * weeksPerMonth * employees;
-  const monthlyProdSavings = teamHoursPerMonth * hourlyCost;
+  // Distribute the base hours saved across priorities (weighted — tweakable)
+  const distribution = useMemo(() => {
+    // Equal weight across their chosen priorities; if none chosen, fallback to throughput
+    const chosen = selected.length ? selected : (["throughput"] as Priority[]);
+    const per = baseHoursSavedPerPersonPerWeek / chosen.length;
+    const map: Record<Priority, number> = {
+      throughput: 0,
+      quality: 0,
+      onboarding: 0,
+      retention: 0,
+      upskilling: 0,
+    };
+    chosen.forEach((p) => (map[p] = per));
+    return map;
+  }, [selected, baseHoursSavedPerPersonPerWeek]);
 
-  const monthlyRetention = selected.includes("retention")
-    ? ((employees * (baselineTurnoverPct / 100) * (improvementPct / 100) * replacementCost) / 12)
-    : 0;
+  const totals = useMemo(() => {
+    const hoursPerWeekTeam =
+      baseHoursSavedPerPersonPerWeek * Math.max(0, employees);
+    const weeks = Math.max(1, Math.round((durationMonths * 52) / 12));
+    const hoursPerYearTeam = hoursPerWeekTeam * weeks;
 
-  const monthlyGross = monthlyProdSavings + monthlyRetention;
-  const programTotal =
-    trainingHoursPerEmp * hourlyCost * employees +
-    trainingCostPerEmp * employees +
-    programOneOff;
+    const monthlySavings =
+      ((hoursPerWeekTeam * hourlyCost) / 4.33) /* avg wks/month */;
 
-  const amortized = months > 0 ? programTotal / months : programTotal;
-  const net = Math.max(0, monthlyGross - amortized);
-  const paybackMonths = net > 0 ? Math.ceil(programTotal / net) : Infinity;
-  const annualROI = programTotal > 0 ? (net * 12) / programTotal : 0;
+    const annualSavings = hoursPerWeekTeam * hourlyCost * 12 * (1 / 4.33);
 
-  const rows = useMemo(() => {
-    const map = new Map<PriorityKey, number>();
-    let sum = 0;
-    selected.forEach((k) => {
-      const w = PRIORITIES.find((p) => p.key === k)?.weight ?? 0;
-      map.set(k, w);
-      sum += w;
-    });
-    return selected.map((k) => {
-      const weight = sum ? (map.get(k)! / sum) : 0;
-      const hours = teamHoursPerMonth * weight;
-      const value = hours * hourlyCost;
-      const meta = PRIORITIES.find((p) => p.key === k)!;
-      return { key: k, label: meta.label, blurb: meta.blurb, hours, value };
-    });
-  }, [selected, teamHoursPerMonth, hourlyCost]);
+    // Payback calc (very simple): assume training cost ~ 8h/employee upfront
+    const assumedTrainingHoursPerEmployee = 8;
+    const trainingCost =
+      assumedTrainingHoursPerEmployee * hourlyCost * Math.max(0, employees);
+    const paybackMonths =
+      monthlySavings > 0 ? Math.max(0.2, trainingCost / monthlySavings) : 0;
 
-  // progress %
-  const maxStep = 5;
-  const pct = ((step - 1) / (maxStep - 1)) * 100;
+    const annualROI =
+      trainingCost > 0 ? Math.max(0, annualSavings / trainingCost) : 0;
+
+    return {
+      hoursPerWeekTeam,
+      hoursPerYearTeam,
+      monthlySavings,
+      annualSavings,
+      trainingCost,
+      paybackMonths,
+      annualROI,
+    };
+  }, [
+    baseHoursSavedPerPersonPerWeek,
+    employees,
+    hourlyCost,
+    durationMonths,
+  ]);
+
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const fmtMoney = (n: number) =>
+    `${symbol(currency)}${n.toLocaleString(undefined, {
+      maximumFractionDigits: 0,
+    })}`;
+
+  const stepBadge =
+    "inline-flex h-7 items-center rounded-full bg-white/10 px-3 text-sm font-medium";
+
+  const card =
+    "rounded-xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur";
 
   return (
-    <div className="pb-16">
-      <div className="container pt-6 md:pt-10">
+    <main className="min-h-screen bg-[#0b1022] text-white">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-10 space-y-8">
+        {/* HERO IMAGE — replaces the old blue header box */}
         <BrandHero />
-      </div>
 
-      {/* Progress */}
-      <div className="container mt-6">
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${pct}%` }} />
+        {/* PROGRESS / STEPS */}
+        <div className="flex flex-wrap gap-2 text-xs md:text-sm text-white/70">
+          <span className={stepBadge}>1 · Team</span>
+          <span className={stepBadge}>2 · AI Maturity</span>
+          <span className={stepBadge}>3 · Priorities</span>
+          <span className={stepBadge}>4 · Training & Duration</span>
+          <span className={stepBadge}>5 · Results</span>
         </div>
-        <div className="flex justify-between text-[12px] text-blue-200/80 mt-2">
-          <span>Team</span>
-          <span>Benchmark</span>
-          <span>Priorities</span>
-          <span>Training</span>
-          <span>Results</span>
-        </div>
-      </div>
 
-      <main className="container mt-6 space-y-8">
-        {/* STEP 1 */}
-        {step === 1 && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <H2>Step 1 — Team</H2>
-              <div className="text-blue-300/90 text-sm">Department, team size, currency</div>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div>
-                <Label>Department</Label>
-                <select
-                  className="mt-1 w-full rounded-lg bg-[#0c1633] border border-blue-500/20 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                  value={dept}
-                  onChange={(e) => setDept(e.target.value)}
-                >
-                  {[
-                    "Company-wide",
-                    "Marketing",
-                    "Sales",
-                    "Customer Support",
-                    "Operations",
-                    "Engineering",
-                    "HR",
-                  ].map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Employees in scope</Label>
-                <NumberInput className="mt-1" value={employees} onChange={setEmployees} min={1} />
-              </div>
-              <div>
-                <Label>Currency</Label>
-                <div className="mt-1">
-                  <CurrencyPicker currency={currency} onChange={setCurrency} />
-                </div>
-              </div>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6 mt-6">
-              <div>
-                <Label>Avg. fully-loaded hourly cost</Label>
-                <NumberInput
-                  className="mt-1"
-                  value={hourlyCost}
-                  onChange={setHourlyCost}
-                  min={1}
-                  suffix={currency}
-                />
-                <p className="text-blue-200/80 text-sm mt-1">
-                  Includes salary, benefits & overhead.
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
+        {/* STEP 1 — Team */}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg md:text-xl font-semibold">Step 1 · Team</h2>
+          </div>
 
-        {/* STEP 2 */}
-        {step === 2 && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <H2>Step 2 — AI Benchmark</H2>
-              <div className="text-blue-300/90 text-sm">Where are you today?</div>
+          <div className="grid md:grid-cols-3 gap-4 md:gap-6">
+            {/* Department */}
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Department
+              </label>
+              <select
+                value={team}
+                onChange={(e) => setTeam(e.target.value as Team)}
+                className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none"
+              >
+                {[
+                  "Company-wide",
+                  "Marketing",
+                  "Sales",
+                  "Customer Support",
+                  "Operations",
+                  "Engineering",
+                  "HR",
+                ].map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </div>
-            <Label>AI Maturity (1–10)</Label>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              step={1}
-              value={maturity}
-              onChange={(e) => setMaturity(parseInt(e.target.value))}
-              className="w-full accent-blue-500 mt-3"
-            />
-            <div className="mt-1 flex justify-between text-[12px] text-blue-200/80">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <span key={i + 1}>{i + 1}</span>
-              ))}
-            </div>
-            <div className="rounded-xl bg-[#0c1633] border border-blue-500/20 p-4 mt-4">
-              <div className="text-blue-200 text-sm mb-1">
-                Selected level: <span className="text-white font-semibold">{maturity}</span>
-              </div>
-              <div className="text-blue-200/90 text-sm">
-                {maturity <= 3 &&
-                  "Early: ad-hoc experiments; big wins from prompt basics & workflow mapping."}
-                {maturity >= 4 && maturity <= 7 &&
-                  "Developing: AI used in parts of the workflow; standardization yields leverage."}
-                {maturity >= 8 &&
-                  "Advanced: AI embedded across workflows; focus on quality systems & scale."}
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
-                  <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                    Hours / emp / week
-                  </div>
-                  <div className="text-white text-lg font-semibold">
-                    {MATURITY_HOURS[maturity].toFixed(1)}h
-                  </div>
-                </div>
-                <div className="rounded-lg border border-blue-400/20 p-3 bg-[#0f1a3a]/60">
-                  <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                    Team hours / month
-                  </div>
-                  <div className="text-white text-lg font-semibold">
-                    {fmt(Math.round(MATURITY_HOURS[maturity] * 4.33 * employees))}h
-                  </div>
-                </div>
-              </div>
+            {/* Employees in scope */}
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Employees in scope
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={employees}
+                onChange={(e) => setEmployees(+e.target.value || 0)}
+                className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none"
+                placeholder="e.g., 50"
+              />
             </div>
-          </Card>
-        )}
 
-        {/* STEP 3 */}
-        {step === 3 && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <H2>Step 3 — Priorities</H2>
-              <div className="text-blue-300/90 text-sm">Pick where improvements matter most</div>
-            </div>
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {PRIORITIES.map((p) => {
-                const active = selected.includes(p.key);
-                return (
+            {/* Currency */}
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Currency
+              </label>
+              <div className="flex gap-2">
+                {(["€", "$", "£"] as Currency[]).map((c) => (
                   <button
-                    key={p.key}
-                    onClick={() => togglePriority(p.key)}
-                    className={`text-left rounded-xl border p-4 transition ${
-                      active
-                        ? "border-blue-400 bg-blue-600/20"
-                        : "border-blue-500/20 bg-[#0c1633] hover:border-blue-400/40"
+                    key={c}
+                    onClick={() => setCurrency(c)}
+                    className={`flex-1 h-10 rounded-lg border px-3 font-medium ${
+                      currency === c
+                        ? "bg-white text-[#0b1022]"
+                        : "bg-white/10 border-white/10 text-white"
                     }`}
                   >
-                    <div className="text-white font-semibold">{p.label}</div>
-                    <div className="text-blue-200/90 text-sm mt-1">{p.blurb}</div>
+                    {c}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
-            <p className="text-blue-200/80 text-sm mt-2">
-              Tip: choose the levers you’d report on this quarter.
+          </div>
+        </section>
+
+        {/* STEP 2 — AI Maturity */}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg md:text-xl font-semibold">
+              Step 2 · AI Maturity
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Where are you today? (1–10)
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={maturity}
+                onChange={(e) => setMaturity(+e.target.value)}
+                className="w-full"
+              />
+              <div className="mt-2 flex justify-between text-xs text-white/60">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`w-6 text-center ${
+                      i + 1 === maturity ? "text-white font-semibold" : ""
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-sm text-white/80">
+                <span className="font-medium">Selected:</span> {maturity} —{" "}
+                {maturity <= 3
+                  ? "Early: ad-hoc experiments; big wins from prompt basics + workflow mapping."
+                  : maturity <= 6
+                  ? "Emerging: pockets of usage; starting to codify playbooks & guardrails."
+                  : maturity <= 8
+                  ? "Scaling: embedded in key workflows with QA + data hygiene."
+                  : "Advanced: standardized, measurable impact; continuous improvement culture."}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-white/5 border border-white/10 p-4">
+              <h3 className="text-sm text-white/70 mb-2">
+                Estimated hours saved
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg bg-white/10 p-3">
+                  <div className="text-xs text-white/70">Per employee / wk</div>
+                  <div className="text-2xl font-semibold">
+                    {baseHoursSavedPerPersonPerWeek}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white/10 p-3">
+                  <div className="text-xs text-white/70">Team / wk</div>
+                  <div className="text-2xl font-semibold">
+                    {fmt(baseHoursSavedPerPersonPerWeek * employees)}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-white/60">
+                This is a modeled estimate based on maturity. You can refine the
+                assumptions via priorities and training below.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* STEP 3 — Priorities (up to 3) */}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg md:text-xl font-semibold">
+              Step 3 · Priorities
+            </h2>
+            <p className="text-xs text-white/60">
+              Choose up to 3 priority areas to focus your AI enablement.
             </p>
-          </Card>
-        )}
+          </div>
 
-        {/* STEP 4 */}
-        {step === 4 && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <H2>Step 4 — Training & Duration</H2>
-              <div className="text-blue-300/90 text-sm">Cost to enable + amortization</div>
-            </div>
-            <div className="grid md:grid-cols-4 gap-6">
-              <div>
-                <Label>Training hours / employee</Label>
-                <NumberInput
-                  className="mt-1"
-                  value={trainingHoursPerEmp}
-                  onChange={setTrainingHoursPerEmp}
-                  min={0}
-                  suffix="h"
-                />
-              </div>
-              <div>
-                <Label>Training cost / employee</Label>
-                <NumberInput
-                  className="mt-1"
-                  value={trainingCostPerEmp}
-                  onChange={setTrainingCostPerEmp}
-                  min={0}
-                  suffix={currency}
-                />
-              </div>
-              <div>
-                <Label>Program one-off cost</Label>
-                <NumberInput
-                  className="mt-1"
-                  value={programOneOff}
-                  onChange={setProgramOneOff}
-                  min={0}
-                  suffix={currency}
-                />
-              </div>
-              <div>
-                <Label>Amortization (months)</Label>
-                <NumberInput className="mt-1" value={months} onChange={setMonths} min={1} />
-              </div>
-            </div>
+          <div className="grid md:grid-cols-5 gap-3">
+            {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => {
+              const isActive = selected.includes(p);
+              const canSelectMore =
+                isActive || (!isActive && selected.length < 3);
+              return (
+                <button
+                  key={p}
+                  onClick={() => {
+                    if (isActive) {
+                      setSelected(selected.filter((x) => x !== p));
+                    } else if (canSelectMore) {
+                      setSelected([...selected, p]);
+                    }
+                  }}
+                  className={`text-left rounded-lg border p-3 transition ${
+                    isActive
+                      ? "bg-white text-[#0b1022] border-white"
+                      : "bg-white/10 border-white/10 text-white hover:bg-white/15"
+                  }`}
+                >
+                  <div className="font-medium">{PRIORITY_LABEL[p]}</div>
+                  <div className="text-xs opacity-80 mt-1">{PRIORITY_HELP[p]}</div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-            {selected.includes("retention") && (
-              <div className="mt-6 rounded-xl border border-blue-500/20 p-4 bg-[#0c1633]">
-                <div className="text-blue-200/90 font-medium mb-3">
-                  Retention assumptions (only if “Retention” is selected)
-                </div>
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div>
-                    <Label>Baseline turnover (annual)</Label>
-                    <NumberInput
-                      className="mt-1"
-                      value={baselineTurnoverPct}
-                      onChange={setBaselineTurnoverPct}
-                      min={0}
-                      suffix="%"
-                    />
-                  </div>
-                  <div>
-                    <Label>Expected improvement</Label>
-                    <NumberInput
-                      className="mt-1"
-                      value={improvementPct}
-                      onChange={setImprovementPct}
-                      min={0}
-                      suffix="%"
-                    />
-                  </div>
-                  <div>
-                    <Label>Replacement cost / employee</Label>
-                    <NumberInput
-                      className="mt-1"
-                      value={replacementCost}
-                      onChange={setReplacementCost}
-                      min={0}
-                      suffix={currency}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
-        )}
+        {/* STEP 4 — Training & Duration */}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg md:text-xl font-semibold">
+              Step 4 · Training & Duration
+            </h2>
+          </div>
 
-        {/* STEP 5 */}
-        {step === 5 && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <H2>Step 5 — Results</H2>
-              <div className="text-blue-300/90 text-sm">Summary + breakdown</div>
+          <div className="grid md:grid-cols-3 gap-4 md:gap-6">
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Fully-loaded hourly cost ({symbol(currency)})
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={hourlyCost}
+                onChange={(e) => setHourlyCost(+e.target.value || 0)}
+                className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none"
+                placeholder="e.g., 35"
+              />
             </div>
 
-            {/* KPI boxes */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                  Monthly savings (gross)
-                </div>
-                <div className="text-2xl font-semibold mt-1">
-                  {money(monthlyGross, currency)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                  Amortized training / month
-                </div>
-                <div className="text-2xl font-semibold mt-1">{money(amortized, currency)}</div>
-              </div>
-              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                  Monthly savings (net)
-                </div>
-                <div className="text-2xl font-semibold mt-1">{money(net, currency)}</div>
-              </div>
-              <div className="rounded-xl border border-blue-400/20 bg-[#0f1a3a]/60 p-4">
-                <div className="text-blue-200 text-[11px] uppercase tracking-wide">
-                  Hours saved / year (team)
-                </div>
-                <div className="text-2xl font-semibold mt-1">
-                  {fmt(Math.round(MATURITY_HOURS[maturity] * 4.33 * employees * 12))}h
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Hours in scope per person / week
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={weeklyHoursInScope}
+                onChange={(e) => setWeeklyHoursInScope(+e.target.value || 0)}
+                className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none"
+                placeholder="e.g., 40"
+              />
             </div>
 
-            {/* Breakdown table */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-blue-200/90">
-                    <th className="py-2 pr-4 font-medium">Priority</th>
-                    <th className="py-2 pr-4 font-medium">Why it matters</th>
-                    <th className="py-2 pr-4 font-medium text-right">Hours / month</th>
-                    <th className="py-2 pr-0 font-medium text-right">Value / month</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.label} className="border-t border-blue-500/10">
-                      <td className="py-2 pr-4 text-white">{r.label}</td>
-                      <td className="py-2 pr-4 text-blue-200/90">{r.blurb}</td>
-                      <td className="py-2 pr-4 text-white text-right">
-                        {fmt(Math.round(r.hours))}h
-                      </td>
-                      <td className="py-2 pr-0 text-white text-right">
-                        {money(r.value, currency)}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="border-t border-blue-500/10">
-                    <td className="py-2 pr-4 text-white font-semibold">Total</td>
-                    <td className="py-2 pr-4" />
-                    <td className="py-2 pr-4 text-white text-right font-semibold">
-                      {fmt(Math.round(teamHoursPerMonth))}h
-                    </td>
-                    <td className="py-2 pr-0 text-white text-right font-semibold">
-                      {money(monthlyProdSavings, currency)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div>
+              <label className="block text-sm text-white/70 mb-2">
+                Duration (months)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={durationMonths}
+                onChange={(e) => setDurationMonths(+e.target.value || 1)}
+                className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-2 focus:outline-none"
+                placeholder="e.g., 6"
+              />
             </div>
-          </Card>
-        )}
+          </div>
+        </section>
 
-        {/* Nav buttons */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setStep((s) => Math.max(1, s - 1))}
-            disabled={step === 1}
-            className={`px-4 py-2 rounded-lg border ${
-              step === 1
-                ? "opacity-50 cursor-not-allowed border-blue-500/20"
-                : "border-blue-500/30 hover:border-blue-400/60"
-            }`}
-          >
-            Back
-          </button>
-          <div className="text-blue-200/90 text-sm">Step {step} of {maxStep}</div>
-          <button
-            onClick={() => setStep((s) => Math.min(maxStep, s + 1))}
-            className="px-4 py-2 rounded-lg bg-[#3366fe] hover:bg-[#2853d6] transition"
-          >
-            {step === maxStep ? "Finish" : "Next"}
-          </button>
-        </div>
-      </main>
-    </div>
+        {/* STEP 5 — Results */}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg md:text-xl font-semibold">Step 5 · Results</h2>
+            <p className="text-xs text-white/60">
+              Modeled impact based on your inputs.
+            </p>
+          </div>
+
+          {/* KPI tiles */}
+          <div className="grid md:grid-cols-4 gap-4">
+            <div className="rounded-lg bg-white/10 p-4">
+              <div className="text-xs text-white/70">Monthly savings</div>
+              <div className="text-2xl font-semibold">
+                {fmtMoney(totals.monthlySavings)}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/10 p-4">
+              <div className="text-xs text-white/70">Payback</div>
+              <div className="text-2xl font-semibold">
+                {totals.paybackMonths.toFixed(1)} mo
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/10 p-4">
+              <div className="text-xs text-white/70">Annual ROI</div>
+              <div className="text-2xl font-semibold">
+                ×{totals.annualROI.toFixed(1)}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/10 p-4">
+              <div className="text-xs text-white/70">Hours saved / year</div>
+              <div className="text-2xl font-semibold">
+                {fmt(totals.hoursPerYearTeam)}
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown table (readable, aligned) */}
+          <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+            <table className="w-full text-sm">
+              <thead className="bg-white/10 text-white/80">
+                <tr>
+                  <th className="text-left font-medium px-4 py-3">Priority</th>
+                  <th className="text-left font-medium px-4 py-3">Why it matters</th>
+                  <th className="text-right font-medium px-4 py-3">Hours / wk</th>
+                  <th className="text-right font-medium px-4 py-3">
+                    Est. Value / wk
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Object.keys(PRIORITY_LABEL) as Priority[])
+                  .filter((p) => selected.includes(p))
+                  .map((p) => {
+                    const hrs = distribution[p] * employees;
+                    const val = hrs * hourlyCost;
+                    return (
+                      <tr
+                        key={p}
+                        className="border-t border-white/10 hover:bg-white/5"
+                      >
+                        <td className="px-4 py-3">{PRIORITY_LABEL[p]}</td>
+                        <td className="px-4 py-3 text-white/80">
+                          {PRIORITY_HELP[p]}
+                        </td>
+                        <td className="px-4 py-3 text-right">{fmt(hrs)}</td>
+                        <td className="px-4 py-3 text-right">{fmtMoney(val)}</td>
+                      </tr>
+                    );
+                  })}
+                <tr className="border-t border-white/20 bg-white/5">
+                  <td className="px-4 py-3 font-semibold">Total</td>
+                  <td className="px-4 py-3 text-white/80">—</td>
+                  <td className="px-4 py-3 text-right font-semibold">
+                    {fmt(baseHoursSavedPerPersonPerWeek * employees)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">
+                    {fmtMoney(baseHoursSavedPerPersonPerWeek * employees * hourlyCost)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Next steps */}
+          <div className="mt-6 text-sm text-white/85">
+            <div className="font-semibold mb-2">Suggested next steps</div>
+            <ul className="list-disc pl-5 space-y-1 text-white/80">
+              <li>Map top 3 workflows for {team}; publish prompt templates.</li>
+              <li>Run a manager-first enablement session; measure in-task usage.</li>
+              <li>Set quarterly ROI reviews; correlate usage with retention.</li>
+              <li>Expand champions cohort; target 60% competency coverage.</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
