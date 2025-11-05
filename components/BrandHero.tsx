@@ -6,8 +6,8 @@ import Image from "next/image";
 export default function BrandHero() {
   return (
     <section className="w-full bg-[#0b1022] text-white">
-      {/* Title & subhead */}
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-10">
+      {/* Heading */}
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-8">
         <h1 className="text-2xl md:text-4xl font-semibold tracking-tight text-center">
           AI at Work — Human Productivity ROI
         </h1>
@@ -16,21 +16,21 @@ export default function BrandHero() {
         </p>
       </div>
 
-      {/* Image block (bounded height, no overlay, no absolute) */}
+      {/* Image (bounded height; won’t take whole screen) */}
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 mt-6">
         <div className="rounded-2xl overflow-hidden border border-blue-500/20 bg-[#0f1a3a]">
           <Image
-            src="/hero-v3.png"          // make sure public/hero-v3.png exists
+            src="/hero.png"    // <-- put your image at public/hero.png
             alt="AI at Work"
             width={1600}
-            height={700}
+            height={560}
             priority
             className="w-full h-auto block"
           />
         </div>
       </div>
 
-      {/* “What the report shows” */}
+      {/* “What the report shows” (small stat cards) */}
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
