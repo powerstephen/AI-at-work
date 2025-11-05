@@ -1,5 +1,5 @@
 // app/page.tsx
-import BrandHero from "../components/BrandHero"; // <- relative path
+import BrandHero from "../components/BrandHero";
 
 const GOALS = ["throughput", "quality", "onboarding", "retention", "upskilling"] as const;
 type Goal = (typeof GOALS)[number];
@@ -14,6 +14,7 @@ const GOAL_META: Record<Goal, { label: string; hint?: string }> = {
 };
 
 export default function Page() {
+  // demo values so you can confirm the layout (replace with calculator outputs)
   const currency = "$";
   const hourlyCost = 50;
   const selected: Goal[] = ["throughput", "upskilling"];
@@ -32,7 +33,7 @@ export default function Page() {
     { key: "onboarding", label: GOAL_META.onboarding.label, value: valOnboarding },
     { key: "retention", label: GOAL_META.retention.label, value: valRetention },
     { key: "upskilling", label: GOAL_META.upskilling.label, value: valUpskilling },
-  ] satisfies ReadonlyArray<BreakdownRow>;
+  ] as const satisfies readonly BreakdownRow[];
 
   const totalHours = breakdown.reduce((s, r) => s + r.value, 0);
   const totalValue = totalHours * hourlyCost;
@@ -41,15 +42,21 @@ export default function Page() {
     <main className="min-h-screen bg-[#0b1022] text-white">
       <BrandHero />
 
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Your steps/calculator area lives inside this container.
+          Keeping it in normal flow avoids any overlap with the hero. */}
+      <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
+        {/* --- PLACE YOUR STEPS COMPONENT HERE IF YOU HAVE ONE --- */}
+        {/* <StepsWizard /> */}
+
+        {/* Demo “results” table so you can verify spacing isn’t broken */}
         <h2 className="text-2xl font-semibold mb-2 text-center text-blue-100">
           Productivity Impact Breakdown
         </h2>
         <p className="text-center text-blue-300 mb-8">
-          Estimated weekly hours saved by priority area (demo values). Replace with live calculator outputs.
+          Estimated weekly hours saved by priority area (demo values).
         </p>
 
-        <div className="overflow-x-auto border border-blue-800/40 rounded-xl bg-blue-950/30 backdrop-blur-sm">
+        <div className="overflow-x-auto rounded-xl border border-blue-800/40 bg-blue-950/30 backdrop-blur-sm">
           <table className="min-w-full text-sm text-left">
             <thead className="bg-blue-900/40 text-blue-100 uppercase tracking-wide text-xs">
               <tr>
@@ -61,7 +68,10 @@ export default function Page() {
             </thead>
             <tbody>
               {breakdown.map(({ key, label, value }) => (
-                <tr key={key} className="border-t border-blue-800/20 hover:bg-blue-900/20 transition">
+                <tr
+                  key={key}
+                  className="border-t border-blue-800/20 hover:bg-blue-900/20 transition"
+                >
                   <td className="px-6 py-3 font-medium text-blue-100">{label}</td>
                   <td className="px-6 py-3 hidden md:table-cell text-blue-300">
                     {GOAL_META[key].hint}
