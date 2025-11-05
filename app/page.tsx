@@ -8,7 +8,7 @@ type Currency = "€" | "$" | "£";
 const sym = (c: Currency) => (c === "€" ? "€" : c === "$" ? "$" : "£");
 
 export default function Page() {
-  /** STEP 1 — Team */
+  // -------- STEP 1: TEAM --------
   const [team, setTeam] = useState(
     "Company-wide" as
       | "Company-wide"
@@ -22,26 +22,16 @@ export default function Page() {
   const [employees, setEmployees] = useState<number>(50);
   const [currency, setCurrency] = useState<Currency>("€");
 
-  /** STEP 2 — AI Maturity (1..10) */
+  // -------- STEP 2: AI MATURITY --------
   const [maturity, setMaturity] = useState<number>(3);
-
-  // Maturity → base hours saved per employee per week (tunable)
   const hoursPerPersonPerWeek = useMemo(() => {
-    // Earlier feedback: ~5h at level 1 → ~8h at level 10
-    const min = 5;
-    const max = 8;
+    const min = 5, max = 8;
     const pct = (maturity - 1) / 9; // 0..1
     return +(min + (max - min) * pct).toFixed(1);
   }, [maturity]);
 
-  /** STEP 3 — Priorities (choose up to 3) */
-  type Priority =
-    | "throughput"
-    | "quality"
-    | "onboarding"
-    | "retention"
-    | "upskilling";
-
+  // -------- STEP 3: PRIORITIES --------
+  type Priority = "throughput" | "quality" | "onboarding" | "retention" | "upskilling";
   const LABEL: Record<Priority, string> = {
     throughput: "Throughput",
     quality: "Quality",
@@ -56,35 +46,23 @@ export default function Page() {
     retention: "Lower regretted attrition via engagement & growth.",
     upskilling: "Expand AI competency; make ‘good’ the default.",
   };
+  const [selected, setSelected] = useState<Priority[]>(["throughput", "quality", "onboarding"]);
 
-  const [selected, setSelected] = useState<Priority[]>([
-    "throughput",
-    "quality",
-    "onboarding",
-  ]);
-
-  /** STEP 4 — Training & Duration */
+  // -------- STEP 4: TRAINING & DURATION --------
   const [hourlyCost, setHourlyCost] = useState<number>(35);
   const [durationMonths, setDurationMonths] = useState<number>(6);
 
-  /** Derived model */
+  // -------- DERIVED --------
   const hoursTeamPerWeek = useMemo(
     () => hoursPerPersonPerWeek * Math.max(0, employees),
     [hoursPerPersonPerWeek, employees]
   );
 
-  // Split hours across selected priorities (equal split, simple + clear)
   const distribution = useMemo(() => {
-    const chosen = selected.length
-      ? selected
-      : (["throughput"] as Priority[]);
+    const chosen = selected.length ? selected : (["throughput"] as Priority[]);
     const split = hoursTeamPerWeek / chosen.length;
     const map: Record<Priority, number> = {
-      throughput: 0,
-      quality: 0,
-      onboarding: 0,
-      retention: 0,
-      upskilling: 0,
+      throughput: 0, quality: 0, onboarding: 0, retention: 0, upskilling: 0,
     };
     chosen.forEach((p) => (map[p] = split));
     return map;
@@ -95,29 +73,23 @@ export default function Page() {
     const hoursYear = hoursTeamPerWeek * weeks;
     const monthly = (hoursTeamPerWeek * hourlyCost) / 4.33;
     const annual = monthly * 12;
-
-    // Simple training cost: 8h per employee (tunable)
-    const trainingCost = employees * 8 * hourlyCost;
+    const trainingCost = employees * 8 * hourlyCost; // simple model
     const payback = monthly > 0 ? Math.max(0.2, trainingCost / monthly) : 0;
     const annualRoi = trainingCost > 0 ? annual / trainingCost : 0;
-
     return { hoursYear, monthly, annual, trainingCost, payback, annualRoi };
   }, [hoursTeamPerWeek, hourlyCost, employees, durationMonths]);
 
-  const fmt = (n: number, d = 0) =>
-    n.toLocaleString(undefined, { maximumFractionDigits: d });
+  const fmt = (n: number, d = 0) => n.toLocaleString(undefined, { maximumFractionDigits: d });
   const fmtMoney = (n: number, d = 0) =>
-    `${sym(currency)}${n.toLocaleString(undefined, {
-      maximumFractionDigits: d,
-    })}`;
+    `${sym(currency)}${n.toLocaleString(undefined, { maximumFractionDigits: d })}`;
 
   return (
-    <main>
+    <main className="bg-[#0b1022] text-white">
       <div className="max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-10 space-y-8">
-        {/* HERO — replaces the blue header block */}
+        {/* HERO (capped height; never covers page) */}
         <BrandHero />
 
-        {/* Steps row */}
+        {/* Step chips */}
         <div className="flex flex-wrap gap-2 text-xs md:text-sm">
           <span className="step-badge">1 · Team</span>
           <span className="step-badge">2 · AI Maturity</span>
@@ -126,43 +98,26 @@ export default function Page() {
           <span className="step-badge">5 · Results</span>
         </div>
 
-        {/* STEP 1 — Team */}
+        {/* STEP 1 */}
         <section className="section-card">
           <h2 className="section-title mb-4">Step 1 · Team</h2>
           <div className="grid md:grid-cols-3 gap-4 md:gap-6">
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Department
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Department</label>
               <select
                 className="select"
                 value={team}
-                onChange={(e) =>
-                  setTeam(
-                    e.target.value as typeof team
-                  )
-                }
+                onChange={(e) => setTeam(e.target.value as typeof team)}
               >
                 {[
-                  "Company-wide",
-                  "Marketing",
-                  "Sales",
-                  "Customer Support",
-                  "Operations",
-                  "Engineering",
-                  "HR",
+                  "Company-wide","Marketing","Sales","Customer Support","Operations","Engineering","HR",
                 ].map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
-
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Employees in scope
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Employees in scope</label>
               <input
                 className="input"
                 type="number"
@@ -172,20 +127,15 @@ export default function Page() {
                 placeholder="e.g., 50"
               />
             </div>
-
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Currency
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Currency</label>
               <div className="flex gap-2">
                 {(["€", "$", "£"] as Currency[]).map((c) => (
                   <button
                     key={c}
                     onClick={() => setCurrency(c)}
                     className={`flex-1 h-10 rounded-lg border px-3 font-medium ${
-                      currency === c
-                        ? "bg-white text-[#0b1022] border-white"
-                        : "bg-white/10 border-white/10 text-white"
+                      currency === c ? "bg-white text-[#0b1022] border-white" : "bg-white/10 border-white/10 text-white"
                     }`}
                   >
                     {c}
@@ -196,14 +146,12 @@ export default function Page() {
           </div>
         </section>
 
-        {/* STEP 2 — AI Maturity */}
+        {/* STEP 2 */}
         <section className="section-card">
           <h2 className="section-title mb-4">Step 2 · AI Maturity</h2>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Where are you today? (1–10)
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Where are you today? (1–10)</label>
               <input
                 className="w-full"
                 type="range"
@@ -214,17 +162,11 @@ export default function Page() {
               />
               <div className="mt-2 flex justify-between text-xs text-white/60">
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <span
-                    key={n}
-                    className={`w-6 text-center ${
-                      n === maturity ? "text-white font-semibold" : ""
-                    }`}
-                  >
+                  <span key={n} className={`w-6 text-center ${n === maturity ? "text-white font-semibold" : ""}`}>
                     {n}
                   </span>
                 ))}
               </div>
-
               <p className="mt-3 text-sm text-white/80">
                 <span className="font-medium">Selected:</span> {maturity} —{" "}
                 {maturity <= 3
@@ -247,24 +189,20 @@ export default function Page() {
                 <div className="kpi-tile">
                   <div className="kpi-label">Team / week</div>
                   <div className="kpi-value">
-                    {fmt(hoursPerPersonPerWeek * employees)}
+                    {(hoursPerPersonPerWeek * employees).toLocaleString()}
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-white/60">
-                Refine via priorities and training below.
-              </p>
+              <p className="mt-2 text-xs text-white/60">Refine via priorities and training below.</p>
             </div>
           </div>
         </section>
 
-        {/* STEP 3 — Priorities */}
+        {/* STEP 3 */}
         <section className="section-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-title">Step 3 · Priorities</h2>
-            <p className="text-xs text-white/60">
-              Choose up to 3 areas to focus enablement.
-            </p>
+            <p className="text-xs text-white/60">Choose up to 3 areas to focus enablement.</p>
           </div>
 
           <div className="grid md:grid-cols-5 gap-3">
@@ -275,9 +213,7 @@ export default function Page() {
                 <button
                   key={p}
                   onClick={() =>
-                    setSelected((prev) =>
-                      active ? prev.filter((x) => x !== p) : room ? [...prev, p] : prev
-                    )
+                    setSelected((prev) => (active ? prev.filter((x) => x !== p) : room ? [...prev, p] : prev))
                   }
                   className={`btn-choice ${active ? "btn-choice--active" : ""}`}
                 >
@@ -289,14 +225,12 @@ export default function Page() {
           </div>
         </section>
 
-        {/* STEP 4 — Training & Duration */}
+        {/* STEP 4 */}
         <section className="section-card">
           <h2 className="section-title mb-4">Step 4 · Training & Duration</h2>
           <div className="grid md:grid-cols-3 gap-4 md:gap-6">
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Fully-loaded hourly cost ({sym(currency)})
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Fully-loaded hourly cost ({sym(currency)})</label>
               <input
                 className="input"
                 type="number"
@@ -307,9 +241,7 @@ export default function Page() {
               />
             </div>
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Duration (months)
-              </label>
+              <label className="block text-sm text-white/70 mb-2">Duration (months)</label>
               <input
                 className="input"
                 type="number"
@@ -320,20 +252,13 @@ export default function Page() {
               />
             </div>
             <div>
-              <label className="block text-sm text-white/70 mb-2">
-                Department (for next steps)
-              </label>
-              <input
-                className="input"
-                value={team}
-                onChange={() => {}}
-                readOnly
-              />
+              <label className="block text-sm text-white/70 mb-2">Department (for next steps)</label>
+              <input className="input" value={team} readOnly />
             </div>
           </div>
         </section>
 
-        {/* STEP 5 — Results */}
+        {/* STEP 5 */}
         <section className="section-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-title">Step 5 · Results</h2>
@@ -360,7 +285,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Breakdown */}
+          {/* Breakdown table */}
           <div className="mt-6 overflow-hidden rounded-xl border border-white/10">
             <table className="table">
               <thead>
@@ -372,7 +297,7 @@ export default function Page() {
                 </tr>
               </thead>
               <tbody>
-                {(Object.keys(LABEL) as Priority[])
+                {(["throughput","quality","onboarding","retention","upskilling"] as Priority[])
                   .filter((p) => selected.includes(p))
                   .map((p) => {
                     const hrs = distribution[p];
@@ -392,9 +317,7 @@ export default function Page() {
                   <td>Total</td>
                   <td>—</td>
                   <td className="text-right">{fmt(hoursTeamPerWeek)}</td>
-                  <td className="text-right">
-                    {fmtMoney(hoursTeamPerWeek * (hourlyCost || 0))}
-                  </td>
+                  <td className="text-right">{fmtMoney(hoursTeamPerWeek * (hourlyCost || 0))}</td>
                 </tr>
               </tfoot>
             </table>
