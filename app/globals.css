@@ -3,16 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --brainster-blue: #3366fe;
+  --brand: #3366fe; /* Brainster vivid blue */
 }
 
 html, body {
-  height: 100%;
+  background: #0b1022;
 }
 
-body {
-  color: #ffffff;
-  background-color: #0b1022;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.container {
+  @apply max-w-5xl mx-auto px-4 md:px-8;
+}
+
+/* Progress bar */
+.progress-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(51,102,254,0.2);
+}
+.progress-fill {
+  height: 6px;
+  border-radius: 9999px;
+  background: #3366fe;
 }
