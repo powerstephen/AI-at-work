@@ -12,11 +12,11 @@ export default function BrandHero() {
 
   // Update this to the RAW link of your GitHub file (not the HTML page URL).
   // How to get it: Open hero.png in GitHub → click "Download raw file".
-  const RAW_GITHUB =
-    "https://raw.githubusercontent.com/powerstephen/AI-at-work/main/public/hero.png";
+ 
+  const RAW_GITHUB = "about:blank"; // disables remote fallback
 
   // Add a small cache-buster so browsers don’t keep an old 404 in memory
-  const LOCAL = "/hero.png?v=5";
+  const LOCAL = "/hero.png";
   const REMOTE = `${RAW_GITHUB}?v=5`;
 
   useEffect(() => {
