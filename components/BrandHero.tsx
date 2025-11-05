@@ -1,34 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 export default function BrandHero() {
-  const [bg, setBg] = useState<string | null>(null);
-
-  // Force LOCAL ONLY (since remote caused confusion)
-  const LOCAL = "/hero.png"; // served from /public/hero.png
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`${LOCAL}?v=${Date.now()}`, { method: "HEAD", cache: "no-store" });
-        if (!cancelled && r.ok) {
-          setBg(LOCAL);
-        } else if (!cancelled) {
-          setBg(null); // fallback to gradient
-        }
-      } catch {
-        if (!cancelled) setBg(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const hasImage = !!bg;
-
   return (
     <section className="w-full">
       <div
@@ -36,20 +8,19 @@ export default function BrandHero() {
           relative mx-auto max-w-6xl
           rounded-2xl overflow-hidden
           border border-blue-500/10
-          /* fixed height, no full-screen stretching */
-          h-[220px] md:h-[260px]
+          h-[220px] md:h-[260px]      /* FIXED HEIGHT */
+          bg-[#0b1022]
         "
-        style={{
-          backgroundImage: hasImage
-            ? `url("${bg}")`
-            : "linear-gradient(180deg, #0b1022 0%, #0f1a3a 100%)",
-          backgroundSize: "cover",       // keep image covering the box
-          backgroundPosition: "center",  // centered focal point
-          backgroundRepeat: "no-repeat",
-        }}
       >
-        {/* Subtle overlay for text legibility */}
-        <div className={`absolute inset-0 ${hasImage ? "bg-[#0b1022]/40" : "bg-transparent"}`} />
+        {/* Background image — no fetching, no fallbacks */}
+        <div
+          className="absolute inset-0 bg-center bg-cover"
+          style={{ backgroundImage: "url('/hero.png')" }}
+          aria-hidden
+        />
+
+        {/* Subtle dark overlay for contrast */}
+        <div className="absolute inset-0 bg-[#0b1022]/45" aria-hidden />
 
         {/* Content */}
         <div className="relative z-10 px-6 md:px-10 py-6 md:py-8">
@@ -60,7 +31,7 @@ export default function BrandHero() {
             Quantify time saved, payback, and retention impact from training managers and teams to work effectively with AI.
           </p>
 
-          {/* Small stats row (unchanged semantics, tighter layout) */}
+          {/* 4 small summary boxes (visual only; your live values render elsewhere) */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto">
             {[
               { label: "Monthly savings", value: "Auto-calculated" },
@@ -75,7 +46,9 @@ export default function BrandHero() {
                 <div className="text-blue-200 text-[11px] uppercase tracking-wide">
                   {item.label}
                 </div>
-                <div className="text-white font-semibold mt-0.5 text-sm">{item.value}</div>
+                <div className="text-white font-semibold mt-0.5 text-sm">
+                  {item.value}
+                </div>
               </div>
             ))}
           </div>
